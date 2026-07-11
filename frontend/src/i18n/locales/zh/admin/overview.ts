@@ -896,7 +896,7 @@ export default {
         typeNotEditable: '分组创建后无法修改计费类型。',
         standard: '标准（余额）',
         subscription: '订阅（配额）',
-        dailyLimit: '每日限额（USD）',
+        dailyLimit: '5 小时限额（USD）',
         weeklyLimit: '每周限额（USD）',
         monthlyLimit: '每月限额（USD）',
         defaultValidityDays: '默认有效期（天）',

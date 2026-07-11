@@ -610,6 +610,11 @@ type UserSubscription struct {
 	DailyUsageUSD   float64 `json:"daily_usage_usd"`
 	WeeklyUsageUSD  float64 `json:"weekly_usage_usd"`
 	MonthlyUsageUSD float64 `json:"monthly_usage_usd"`
+	ShowRate        bool    `json:"show_rate,omitempty"`
+	ShowPeakRate    bool    `json:"show_peak_rate,omitempty"`
+	Show5hLimit     bool    `json:"show_5h_limit,omitempty"`
+	ShowWeekLimit   bool    `json:"show_week_limit,omitempty"`
+	ShowMonthLimit  bool    `json:"show_month_limit,omitempty"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`

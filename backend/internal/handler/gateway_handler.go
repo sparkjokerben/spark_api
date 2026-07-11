@@ -1451,17 +1451,27 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 		// 订阅信息可能不在 context 中（/v1/usage 路径跳过了中间件的计费检查）
 		subscription, ok := middleware2.GetSubscriptionFromContext(c)
 		if ok {
-			remaining := h.calculateSubscriptionRemaining(apiKey.Group, subscription)
-			resp["remaining"] = remaining
-			resp["subscription"] = gin.H{
-				"daily_usage_usd":   subscription.DailyUsageUSD,
-				"weekly_usage_usd":  subscription.WeeklyUsageUSD,
-				"monthly_usage_usd": subscription.MonthlyUsageUSD,
-				"daily_limit_usd":   apiKey.Group.DailyLimitUSD,
-				"weekly_limit_usd":  apiKey.Group.WeeklyLimitUSD,
-				"monthly_limit_usd": apiKey.Group.MonthlyLimitUSD,
-				"expires_at":        subscription.ExpiresAt,
+			display := service.SubscriptionDisplayConfig{}
+			if h.settingService != nil {
+				display, _ = h.settingService.GetSubscriptionDisplayConfig(ctx)
 			}
+			subInfo := gin.H{"expires_at": subscription.ExpiresAt}
+			if display.Show5hLimit {
+				subInfo["daily_usage_usd"] = subscription.DailyUsageUSD
+				subInfo["daily_limit_usd"] = apiKey.Group.DailyLimitUSD
+			}
+			if display.ShowWeekLimit {
+				subInfo["weekly_usage_usd"] = subscription.WeeklyUsageUSD
+				subInfo["weekly_limit_usd"] = apiKey.Group.WeeklyLimitUSD
+			}
+			if display.ShowMonthLimit {
+				subInfo["monthly_usage_usd"] = subscription.MonthlyUsageUSD
+				subInfo["monthly_limit_usd"] = apiKey.Group.MonthlyLimitUSD
+			}
+			if display.Show5hLimit && display.ShowWeekLimit && display.ShowMonthLimit {
+				resp["remaining"] = h.calculateSubscriptionRemaining(apiKey.Group, subscription)
+			}
+			resp["subscription"] = subInfo
 		}
 
 		if usageData != nil {

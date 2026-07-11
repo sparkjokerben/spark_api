@@ -102,6 +102,30 @@ func TestParsePaymentConfig(t *testing.T) {
 		if len(cfg.EnabledTypes) != 0 {
 			t.Fatalf("expected empty EnabledTypes, got %v", cfg.EnabledTypes)
 		}
+		if cfg.FXRateFallback != defaultFXRateFallback {
+			t.Fatalf("expected FXRateFallback=%v, got %v", defaultFXRateFallback, cfg.FXRateFallback)
+		}
+		if cfg.BalanceRechargeExpression != "1" || cfg.SubscriptionRechargeExpression != "1" {
+			t.Fatalf("unexpected default recharge expressions: %q, %q", cfg.BalanceRechargeExpression, cfg.SubscriptionRechargeExpression)
+		}
+		if !cfg.SubscriptionShowRate || !cfg.SubscriptionShowPeakRate || !cfg.SubscriptionShow5hLimit || !cfg.SubscriptionShowWeekLimit || !cfg.SubscriptionShowTotalLimit || !cfg.SubscriptionShowModelScopes {
+			t.Fatal("subscription plan details should be visible by default")
+		}
+	})
+
+	t.Run("subscription display fields can be disabled independently", func(t *testing.T) {
+		t.Parallel()
+		cfg := svc.parsePaymentConfig(map[string]string{
+			SettingSubscriptionShowRate:        "false",
+			SettingSubscriptionShowPeakRate:    "false",
+			SettingSubscriptionShow5hLimit:     "false",
+			SettingSubscriptionShowWeekLimit:   "false",
+			SettingSubscriptionShowTotalLimit:  "false",
+			SettingSubscriptionShowModelScopes: "false",
+		})
+		if cfg.SubscriptionShowRate || cfg.SubscriptionShowPeakRate || cfg.SubscriptionShow5hLimit || cfg.SubscriptionShowWeekLimit || cfg.SubscriptionShowTotalLimit || cfg.SubscriptionShowModelScopes {
+			t.Fatal("explicitly disabled subscription plan details must remain hidden")
+		}
 	})
 
 	t.Run("all values populated", func(t *testing.T) {

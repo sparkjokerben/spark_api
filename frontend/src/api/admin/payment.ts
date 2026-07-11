@@ -25,12 +25,22 @@ export interface AdminPaymentConfig {
   balance_disabled: boolean
   balance_recharge_multiplier: number
   subscription_usd_to_cny_rate: number
+  balance_recharge_expression: string
+  subscription_recharge_expression: string
+  fx_rate_fallback: number
   recharge_fee_rate: number
   load_balance_strategy: string
   product_name_prefix: string
   product_name_suffix: string
   help_image_url: string
   help_text: string
+  balance_recharge_help_text: string
+  subscription_show_rate: boolean
+  subscription_show_peak_rate: boolean
+  subscription_show_5h_limit: boolean
+  subscription_show_week_limit: boolean
+  subscription_show_total_limit: boolean
+  subscription_show_model_scopes: boolean
 }
 
 /** Fields accepted by PUT /admin/payment/config (all optional via pointer semantics) */
@@ -45,12 +55,22 @@ export interface UpdatePaymentConfigRequest {
   balance_disabled?: boolean
   balance_recharge_multiplier?: number
   subscription_usd_to_cny_rate?: number
+  balance_recharge_expression?: string
+  subscription_recharge_expression?: string
+  fx_rate_fallback?: number
   recharge_fee_rate?: number
   load_balance_strategy?: string
   product_name_prefix?: string
   product_name_suffix?: string
   help_image_url?: string
   help_text?: string
+  balance_recharge_help_text?: string
+  subscription_show_rate?: boolean
+  subscription_show_peak_rate?: boolean
+  subscription_show_5h_limit?: boolean
+  subscription_show_week_limit?: boolean
+  subscription_show_total_limit?: boolean
+  subscription_show_model_scopes?: boolean
 }
 
 export interface RefundResult {

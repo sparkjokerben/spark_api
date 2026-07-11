@@ -6515,69 +6515,23 @@
                     />
                   </div>
                   <div>
-                    <label class="input-label">{{
-                      t("admin.settings.payment.balanceRechargeMultiplier")
-                    }}</label>
-                    <input
-                      :value="form.payment_balance_recharge_multiplier || ''"
-                      @input="
-                        form.payment_balance_recharge_multiplier =
-                          parseFloat(
-                            ($event.target as HTMLInputElement).value,
-                          ) || 1
-                      "
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      class="input"
-                    />
+                    <label class="input-label">{{ t("admin.settings.payment.balanceRechargeExpression") }}</label>
+                    <input v-model="form.payment_balance_recharge_expression" type="text" class="input font-mono" />
                     <p class="mt-0.5 text-xs text-gray-400">
-                      {{
-                        t(
-                          "admin.settings.payment.balanceRechargeMultiplierHint",
-                        )
-                      }}
-                    </p>
-                    <p
-                      class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-400"
-                    >
-                      {{
-                        t("admin.settings.payment.balanceRechargePreview", {
-                          usd: (
-                            Number(form.payment_balance_recharge_multiplier) ||
-                            1
-                          ).toFixed(2),
-                        })
-                      }}
+                      {{ t("admin.settings.payment.rechargeExpressionHint") }}
                     </p>
                   </div>
                   <div>
-                    <label class="input-label">{{
-                      t("admin.settings.payment.subscriptionUsdToCnyRate")
-                    }}</label>
-                    <input
-                      :value="form.payment_subscription_usd_to_cny_rate || ''"
-                      @input="
-                        form.payment_subscription_usd_to_cny_rate =
-                          parseFloat(
-                            ($event.target as HTMLInputElement).value,
-                          ) || 0
-                      "
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      class="input"
-                      :placeholder="
-                        t(
-                          'admin.settings.payment.subscriptionUsdToCnyRateDisabled',
-                        )
-                      "
-                    />
+                    <label class="input-label">{{ t("admin.settings.payment.subscriptionRechargeExpression") }}</label>
+                    <input v-model="form.payment_subscription_recharge_expression" type="text" class="input font-mono" />
                     <p class="mt-0.5 text-xs text-gray-400">
-                      {{
-                        t("admin.settings.payment.subscriptionUsdToCnyRateHint")
-                      }}
+                      {{ t("admin.settings.payment.rechargeExpressionHint") }}
                     </p>
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t("admin.settings.payment.fxRateFallback") }}</label>
+                    <input v-model.number="form.payment_fx_rate_fallback" type="number" step="0.01" min="0.01" class="input" />
+                    <p class="mt-0.5 text-xs text-gray-400">{{ t("admin.settings.payment.fxRateFallbackHint") }}</p>
                   </div>
                   <div>
                     <label class="input-label">{{
@@ -6626,6 +6580,17 @@
                         })
                       }}
                     </p>
+                  </div>
+                  <div class="col-span-2">
+                    <label class="input-label">{{ t("admin.settings.payment.subscriptionDisplay") }}</label>
+                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input v-model="form.payment_subscription_show_rate" type="checkbox" />{{ t("admin.settings.payment.subscriptionShowRate") }}</label>
+                      <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input v-model="form.payment_subscription_show_peak_rate" type="checkbox" />{{ t("admin.settings.payment.subscriptionShowPeakRate") }}</label>
+                      <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input v-model="form.payment_subscription_show_5h_limit" type="checkbox" />{{ t("admin.settings.payment.subscriptionShow5hLimit") }}</label>
+                      <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input v-model="form.payment_subscription_show_week_limit" type="checkbox" />{{ t("admin.settings.payment.subscriptionShowWeekLimit") }}</label>
+                      <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input v-model="form.payment_subscription_show_total_limit" type="checkbox" />{{ t("admin.settings.payment.subscriptionShowTotalLimit") }}</label>
+                      <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input v-model="form.payment_subscription_show_model_scopes" type="checkbox" />{{ t("admin.settings.payment.subscriptionShowModelScopes") }}</label>
+                    </div>
                   </div>
                   <div>
                     <label class="input-label"
@@ -6861,6 +6826,15 @@
                       :placeholder="
                         t('admin.settings.payment.helpTextPlaceholder')
                       "
+                    ></textarea>
+                  </div>
+                  <div class="col-span-2">
+                    <label class="input-label">{{ t("admin.settings.payment.balanceRechargeHelpText") }}</label>
+                    <textarea
+                      v-model="form.payment_balance_recharge_help_text"
+                      rows="3"
+                      class="input"
+                      :placeholder="t('admin.settings.payment.balanceRechargeHelpTextPlaceholder')"
                     ></textarea>
                   </div>
                 </div>
@@ -8137,10 +8111,20 @@ const form = reactive<SettingsForm>({
   payment_balance_disabled: false,
   payment_balance_recharge_multiplier: 1,
   payment_subscription_usd_to_cny_rate: 0,
+  payment_balance_recharge_expression: "1 / %fx_rate%",
+  payment_subscription_recharge_expression: "%fx_rate%",
+  payment_fx_rate_fallback: 7.2,
   payment_recharge_fee_rate: 0,
   payment_enabled_types: [],
   payment_help_image_url: "",
   payment_help_text: "",
+  payment_balance_recharge_help_text: "",
+  payment_subscription_show_rate: true,
+  payment_subscription_show_peak_rate: true,
+  payment_subscription_show_5h_limit: true,
+  payment_subscription_show_week_limit: true,
+  payment_subscription_show_total_limit: true,
+  payment_subscription_show_model_scopes: true,
   payment_product_name_prefix: "",
   payment_product_name_suffix: "",
   payment_load_balance_strategy: "round-robin",
@@ -9641,6 +9625,11 @@ async function saveSettings() {
         Number(form.payment_balance_recharge_multiplier) || 1,
       payment_subscription_usd_to_cny_rate:
         Number(form.payment_subscription_usd_to_cny_rate) || 0,
+      payment_balance_recharge_expression:
+        form.payment_balance_recharge_expression.trim(),
+      payment_subscription_recharge_expression:
+        form.payment_subscription_recharge_expression.trim(),
+      payment_fx_rate_fallback: Number(form.payment_fx_rate_fallback) || 7.2,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
       payment_enabled_types: form.payment_enabled_types,
       payment_load_balance_strategy: form.payment_load_balance_strategy,
@@ -9648,6 +9637,19 @@ async function saveSettings() {
       payment_product_name_suffix: form.payment_product_name_suffix,
       payment_help_image_url: form.payment_help_image_url,
       payment_help_text: form.payment_help_text,
+      payment_balance_recharge_help_text:
+        form.payment_balance_recharge_help_text,
+      payment_subscription_show_rate: form.payment_subscription_show_rate,
+      payment_subscription_show_peak_rate:
+        form.payment_subscription_show_peak_rate,
+      payment_subscription_show_5h_limit:
+        form.payment_subscription_show_5h_limit,
+      payment_subscription_show_week_limit:
+        form.payment_subscription_show_week_limit,
+      payment_subscription_show_total_limit:
+        form.payment_subscription_show_total_limit,
+      payment_subscription_show_model_scopes:
+        form.payment_subscription_show_model_scopes,
       payment_cancel_rate_limit_enabled: form.payment_cancel_rate_limit_enabled,
       payment_cancel_rate_limit_max:
         Number(form.payment_cancel_rate_limit_max) || 10,

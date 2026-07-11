@@ -35,6 +35,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if !cfg.Enabled {
 		return nil, infraerrors.Forbidden("PAYMENT_DISABLED", "payment system is disabled")
 	}
+	s.configService.ApplyEffectiveRechargeExpressions(ctx, cfg)
 	plan, err := s.validateOrderInput(ctx, req, cfg)
 	if err != nil {
 		return nil, err
@@ -639,8 +640,7 @@ func calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate float64, cur
 }
 
 // calculateSubscriptionGatewayBaseAmount 计算订阅订单的网关扣款基数。
-// 换算是显式 opt-in：仅当管理员配置了订阅汇率（rate > 0，1 USD = rate CNY）
-// 且网关币种为 CNY 时，按 price × rate 换算；未配置时保持 price 直付的存量行为。
+// 仅 CNY 网关应用订阅支付表达式计算出的倍率；其他币种保持套餐价格不变。
 func calculateSubscriptionGatewayBaseAmount(amount, usdToCnyRate float64, currency string) float64 {
 	rate := normalizeSubscriptionUSDToCNYRate(usdToCnyRate)
 	if rate <= 0 || currency != payment.DefaultPaymentCurrency {

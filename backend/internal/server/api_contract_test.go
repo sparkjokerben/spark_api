@@ -431,6 +431,11 @@ func TestAPIContracts(t *testing.T) {
 						"daily_usage_usd": 1.23,
 						"weekly_usage_usd": 2.34,
 						"monthly_usage_usd": 3.45,
+						"show_rate": true,
+						"show_peak_rate": true,
+						"show_5h_limit": true,
+						"show_week_limit": true,
+						"show_month_limit": true,
 						"created_at": "2025-01-02T03:04:05Z",
 						"updated_at": "2025-01-02T03:04:05Z"
 					}
@@ -913,12 +918,22 @@ func TestAPIContracts(t *testing.T) {
 					"payment_balance_disabled": false,
 					"payment_balance_recharge_multiplier": 0,
 					"payment_subscription_usd_to_cny_rate": 0,
+					"payment_balance_recharge_expression": "",
+					"payment_subscription_recharge_expression": "",
+					"payment_fx_rate_fallback": 0,
 					"payment_recharge_fee_rate": 0,
 					"payment_load_balance_strategy": "",
 					"payment_product_name_prefix": "",
 					"payment_product_name_suffix": "",
 					"payment_help_image_url": "",
 					"payment_help_text": "",
+					"payment_balance_recharge_help_text": "",
+					"payment_subscription_show_rate": false,
+					"payment_subscription_show_peak_rate": false,
+					"payment_subscription_show_5h_limit": false,
+					"payment_subscription_show_week_limit": false,
+					"payment_subscription_show_total_limit": false,
+					"payment_subscription_show_model_scopes": false,
 					"payment_enabled_types": null,
 					"payment_cancel_rate_limit_enabled": false,
 					"payment_cancel_rate_limit_max": 0,
@@ -1184,12 +1199,22 @@ func TestAPIContracts(t *testing.T) {
 					"payment_balance_disabled": false,
 					"payment_balance_recharge_multiplier": 0,
 					"payment_subscription_usd_to_cny_rate": 0,
+					"payment_balance_recharge_expression": "",
+					"payment_subscription_recharge_expression": "",
+					"payment_fx_rate_fallback": 0,
 					"payment_recharge_fee_rate": 0,
 					"payment_load_balance_strategy": "",
 					"payment_product_name_prefix": "",
 					"payment_product_name_suffix": "",
 					"payment_help_image_url": "",
 					"payment_help_text": "",
+					"payment_balance_recharge_help_text": "",
+					"payment_subscription_show_rate": false,
+					"payment_subscription_show_peak_rate": false,
+					"payment_subscription_show_5h_limit": false,
+					"payment_subscription_show_week_limit": false,
+					"payment_subscription_show_total_limit": false,
+					"payment_subscription_show_model_scopes": false,
 					"payment_cancel_rate_limit_enabled": false,
 					"payment_cancel_rate_limit_max": 0,
 					"payment_cancel_rate_limit_window": 0,
@@ -1362,7 +1387,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	usageService := service.NewUsageService(usageRepo, userRepo, nil, nil)
 
 	subscriptionService := service.NewSubscriptionService(groupRepo, userSubRepo, nil, nil, cfg)
-	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
+	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService, nil)
 
 	redeemService := service.NewRedeemService(redeemRepo, userRepo, subscriptionService, nil, nil, nil, nil, nil)
 	redeemHandler := handler.NewRedeemHandler(redeemService)

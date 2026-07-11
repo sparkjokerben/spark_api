@@ -108,6 +108,7 @@ function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
     subscription_usd_to_cny_rate: 0,
     recharge_fee_rate: 0,
     help_text: '',
+    balance_recharge_help_text: '',
     help_image_url: '',
     stripe_publishable_key: '',
   }

@@ -219,7 +219,10 @@ function getMaxUsagePercentage(sub: UserSubscription): number {
 }
 
 function isUnlimited(sub: UserSubscription): boolean {
-  return (
+  if (sub.show_5h_limit !== true || sub.show_week_limit !== true || sub.show_month_limit !== true) {
+		return false
+	}
+	return (
     !sub.group?.daily_limit_usd &&
     !sub.group?.weekly_limit_usd &&
     !sub.group?.monthly_limit_usd

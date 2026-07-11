@@ -1672,6 +1672,11 @@ export interface UserSubscription {
   daily_usage_usd: number
   weekly_usage_usd: number
   monthly_usage_usd: number
+  show_rate?: boolean
+  show_peak_rate?: boolean
+  show_5h_limit?: boolean
+  show_week_limit?: boolean
+  show_month_limit?: boolean
   daily_window_start: string | null
   weekly_window_start: string | null
   monthly_window_start: string | null

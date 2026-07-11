@@ -41,6 +41,7 @@ func (h *PaymentHandler) GetPaymentConfig(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	h.configService.ApplyEffectiveRechargeExpressions(c.Request.Context(), cfg)
 	response.Success(c, cfg)
 }
 
@@ -52,17 +53,26 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	cfg, err := h.configService.GetPaymentConfig(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	// Enrich plans with group platform for frontend color coding
 	type planWithPlatform struct {
 		ID                 int64    `json:"id"`
 		GroupID            int64    `json:"group_id"`
 		GroupPlatform      string   `json:"group_platform"`
 		GroupName          string   `json:"group_name"`
-		RateMultiplier     float64  `json:"rate_multiplier"`
-		PeakRateEnabled    bool     `json:"peak_rate_enabled"`
-		PeakStart          string   `json:"peak_start"`
-		PeakEnd            string   `json:"peak_end"`
-		PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
+		RateMultiplier     *float64 `json:"rate_multiplier,omitempty"`
+		PeakRateEnabled    *bool    `json:"peak_rate_enabled,omitempty"`
+		PeakStart          string   `json:"peak_start,omitempty"`
+		PeakEnd            string   `json:"peak_end,omitempty"`
+		PeakRateMultiplier *float64 `json:"peak_rate_multiplier,omitempty"`
+		DailyLimitUSD      *float64 `json:"daily_limit_usd,omitempty"`
+		WeeklyLimitUSD     *float64 `json:"weekly_limit_usd,omitempty"`
+		MonthlyLimitUSD    *float64 `json:"monthly_limit_usd,omitempty"`
+		ModelScopes        []string `json:"supported_model_scopes,omitempty"`
 		Name               string   `json:"name"`
 		Description        string   `json:"description"`
 		Price              float64  `json:"price"`
@@ -78,11 +88,14 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 	result := make([]planWithPlatform, 0, len(plans))
 	for _, p := range plans {
 		gi := groupInfo[p.GroupID]
+		visible := visibleCheckoutGroupInfo(cfg, gi)
 		result = append(result, planWithPlatform{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.Name,
-			RateMultiplier: gi.RateMultiplier, PeakRateEnabled: gi.PeakRateEnabled,
-			PeakStart: gi.PeakStart, PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
+			RateMultiplier: visible.RateMultiplier, PeakRateEnabled: visible.PeakRateEnabled,
+			PeakStart: visible.PeakStart, PeakEnd: visible.PeakEnd, PeakRateMultiplier: visible.PeakRateMultiplier,
+			DailyLimitUSD: visible.DailyLimitUSD, WeeklyLimitUSD: visible.WeeklyLimitUSD,
+			MonthlyLimitUSD: visible.MonthlyLimitUSD, ModelScopes: visible.ModelScopes,
 			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: p.Features,
 			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
@@ -121,6 +134,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	h.configService.ApplyEffectiveRechargeExpressions(ctx, cfg)
 
 	// Fetch plans with group info
 	plans, _ := h.configService.ListPlansForSale(ctx)
@@ -128,15 +142,16 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	planList := make([]checkoutPlan, 0, len(plans))
 	for _, p := range plans {
 		gi := groupInfo[p.GroupID]
+		visible := visibleCheckoutGroupInfo(cfg, gi)
 		planList = append(planList, checkoutPlan{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.Name,
-			RateMultiplier:  gi.RateMultiplier,
-			PeakRateEnabled: gi.PeakRateEnabled, PeakStart: gi.PeakStart,
-			PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
-			DailyLimitUSD:  gi.DailyLimitUSD,
-			WeeklyLimitUSD: gi.WeeklyLimitUSD, MonthlyLimitUSD: gi.MonthlyLimitUSD,
-			ModelScopes: gi.ModelScopes,
+			RateMultiplier:  visible.RateMultiplier,
+			PeakRateEnabled: visible.PeakRateEnabled, PeakStart: visible.PeakStart,
+			PeakEnd: visible.PeakEnd, PeakRateMultiplier: visible.PeakRateMultiplier,
+			DailyLimitUSD:  visible.DailyLimitUSD,
+			WeeklyLimitUSD: visible.WeeklyLimitUSD, MonthlyLimitUSD: visible.MonthlyLimitUSD,
+			ModelScopes: visible.ModelScopes,
 			Name:        p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
 			ProductName: p.ProductName,
@@ -153,6 +168,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		SubscriptionUSDToCNYRate:  cfg.SubscriptionUSDToCNYRate,
 		RechargeFeeRate:           cfg.RechargeFeeRate,
 		HelpText:                  cfg.HelpText,
+		BalanceRechargeHelpText:   cfg.BalanceRechargeHelpText,
 		HelpImageURL:              cfg.HelpImageURL,
 		StripePublishableKey:      cfg.StripePublishableKey,
 		AlipayForceQRCode:         cfg.AlipayForceQRCode,
@@ -169,6 +185,7 @@ type checkoutInfoResponse struct {
 	SubscriptionUSDToCNYRate  float64                         `json:"subscription_usd_to_cny_rate"`
 	RechargeFeeRate           float64                         `json:"recharge_fee_rate"`
 	HelpText                  string                          `json:"help_text"`
+	BalanceRechargeHelpText   string                          `json:"balance_recharge_help_text"`
 	HelpImageURL              string                          `json:"help_image_url"`
 	StripePublishableKey      string                          `json:"stripe_publishable_key"`
 	AlipayForceQRCode         bool                            `json:"alipay_force_qrcode"`
@@ -179,15 +196,15 @@ type checkoutPlan struct {
 	GroupID            int64    `json:"group_id"`
 	GroupPlatform      string   `json:"group_platform"`
 	GroupName          string   `json:"group_name"`
-	RateMultiplier     float64  `json:"rate_multiplier"`
-	PeakRateEnabled    bool     `json:"peak_rate_enabled"`
-	PeakStart          string   `json:"peak_start"`
-	PeakEnd            string   `json:"peak_end"`
-	PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
-	DailyLimitUSD      *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD     *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD    *float64 `json:"monthly_limit_usd"`
-	ModelScopes        []string `json:"supported_model_scopes"`
+	RateMultiplier     *float64 `json:"rate_multiplier,omitempty"`
+	PeakRateEnabled    *bool    `json:"peak_rate_enabled,omitempty"`
+	PeakStart          string   `json:"peak_start,omitempty"`
+	PeakEnd            string   `json:"peak_end,omitempty"`
+	PeakRateMultiplier *float64 `json:"peak_rate_multiplier,omitempty"`
+	DailyLimitUSD      *float64 `json:"daily_limit_usd,omitempty"`
+	WeeklyLimitUSD     *float64 `json:"weekly_limit_usd,omitempty"`
+	MonthlyLimitUSD    *float64 `json:"monthly_limit_usd,omitempty"`
+	ModelScopes        []string `json:"supported_model_scopes,omitempty"`
 	Name               string   `json:"name"`
 	Description        string   `json:"description"`
 	Price              float64  `json:"price"`
@@ -196,6 +213,44 @@ type checkoutPlan struct {
 	ValidityUnit       string   `json:"validity_unit"`
 	Features           []string `json:"features"`
 	ProductName        string   `json:"product_name"`
+}
+
+type visiblePlanGroupInfo struct {
+	RateMultiplier     *float64
+	PeakRateEnabled    *bool
+	PeakStart          string
+	PeakEnd            string
+	PeakRateMultiplier *float64
+	DailyLimitUSD      *float64
+	WeeklyLimitUSD     *float64
+	MonthlyLimitUSD    *float64
+	ModelScopes        []string
+}
+
+func visibleCheckoutGroupInfo(cfg *service.PaymentConfig, gi service.PlanGroupInfo) visiblePlanGroupInfo {
+	var out visiblePlanGroupInfo
+	if cfg.SubscriptionShowRate {
+		out.RateMultiplier = &gi.RateMultiplier
+	}
+	if cfg.SubscriptionShowPeakRate {
+		out.PeakRateEnabled = &gi.PeakRateEnabled
+		out.PeakStart = gi.PeakStart
+		out.PeakEnd = gi.PeakEnd
+		out.PeakRateMultiplier = &gi.PeakRateMultiplier
+	}
+	if cfg.SubscriptionShow5hLimit {
+		out.DailyLimitUSD = gi.DailyLimitUSD
+	}
+	if cfg.SubscriptionShowWeekLimit {
+		out.WeeklyLimitUSD = gi.WeeklyLimitUSD
+	}
+	if cfg.SubscriptionShowTotalLimit {
+		out.MonthlyLimitUSD = gi.MonthlyLimitUSD
+	}
+	if cfg.SubscriptionShowModelScopes {
+		out.ModelScopes = gi.ModelScopes
+	}
+	return out
 }
 
 // parseFeatures splits a newline-separated features string into a string slice.

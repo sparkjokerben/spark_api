@@ -34,10 +34,14 @@ export interface PaymentConfig {
   order_timeout_minutes: number
   balance_disabled: boolean
   balance_recharge_multiplier: number
+  balance_recharge_expression: string
+  subscription_recharge_expression: string
+  fx_rate_fallback: number
   subscription_usd_to_cny_rate: number
   enabled_payment_types: PaymentType[]
   help_image_url: string
   help_text: string
+  balance_recharge_help_text: string
   stripe_publishable_key: string
 }
 
@@ -72,6 +76,7 @@ export interface CheckoutInfoResponse {
   subscription_usd_to_cny_rate: number
   recharge_fee_rate: number
   help_text: string
+  balance_recharge_help_text: string
   help_image_url: string
   stripe_publishable_key: string
   /** When true, Alipay payments on mobile always show the QR code instead of redirecting */

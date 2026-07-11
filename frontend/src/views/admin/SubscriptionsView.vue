@@ -777,7 +777,7 @@ import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { getRemainingDurationParts, isOneTimeDailyQuota, type RemainingDurationParts } from '@/utils/subscriptionQuota'
+import { getRemainingDurationParts, type RemainingDurationParts } from '@/utils/subscriptionQuota'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -1367,24 +1367,7 @@ const formatResetDuration = (parts: RemainingDurationParts): string => {
   return t('admin.subscriptions.resetInMinutes', { minutes: parts.minutes })
 }
 
-const formatQuotaEndDuration = (parts: RemainingDurationParts): string => {
-  if (parts.days > 0) {
-    return t('admin.subscriptions.quotaEndsInDaysHours', { days: parts.days, hours: parts.hours })
-  }
-
-  if (parts.hours > 0) {
-    return t('admin.subscriptions.quotaEndsInHoursMinutes', { hours: parts.hours, minutes: parts.minutes })
-  }
-
-  return t('admin.subscriptions.quotaEndsInMinutes', { minutes: parts.minutes })
-}
-
 const formatDailyUsageWindow = (subscription: UserSubscription): string => {
-  if (isOneTimeDailyQuota(subscription) && subscription.expires_at) {
-    const parts = getRemainingDurationParts(subscription.expires_at)
-    return parts ? formatQuotaEndDuration(parts) : t('admin.subscriptions.windowNotActive')
-  }
-
   return formatResetTime(subscription.daily_window_start, 'daily')
 }
 
@@ -1399,7 +1382,7 @@ const formatResetTime = (windowStart: string | null, period: 'daily' | 'weekly' 
   let resetTime: Date
   switch (period) {
     case 'daily':
-      resetTime = new Date(start.getTime() + 24 * 60 * 60 * 1000)
+      resetTime = new Date(start.getTime() + 5 * 60 * 60 * 1000)
       break
     case 'weekly':
       resetTime = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000)

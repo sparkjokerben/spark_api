@@ -265,22 +265,32 @@ type UpdateSettingsRequest struct {
 	AccountQuotaNotifyEmails        *[]dto.NotifyEmailEntry `json:"account_quota_notify_emails"`
 
 	// Payment configuration (integrated into settings, full replace)
-	PaymentEnabled                   *bool    `json:"payment_enabled"`
-	PaymentMinAmount                 *float64 `json:"payment_min_amount"`
-	PaymentMaxAmount                 *float64 `json:"payment_max_amount"`
-	PaymentDailyLimit                *float64 `json:"payment_daily_limit"`
-	PaymentOrderTimeoutMin           *int     `json:"payment_order_timeout_minutes"`
-	PaymentMaxPendingOrders          *int     `json:"payment_max_pending_orders"`
-	PaymentEnabledTypes              []string `json:"payment_enabled_types"`
-	PaymentBalanceDisabled           *bool    `json:"payment_balance_disabled"`
-	PaymentBalanceRechargeMultiplier *float64 `json:"payment_balance_recharge_multiplier"`
-	PaymentSubscriptionUSDToCNYRate  *float64 `json:"payment_subscription_usd_to_cny_rate"`
-	PaymentRechargeFeeRate           *float64 `json:"payment_recharge_fee_rate"`
-	PaymentLoadBalanceStrat          *string  `json:"payment_load_balance_strategy"`
-	PaymentProductNamePrefix         *string  `json:"payment_product_name_prefix"`
-	PaymentProductNameSuffix         *string  `json:"payment_product_name_suffix"`
-	PaymentHelpImageURL              *string  `json:"payment_help_image_url"`
-	PaymentHelpText                  *string  `json:"payment_help_text"`
+	PaymentEnabled                        *bool    `json:"payment_enabled"`
+	PaymentMinAmount                      *float64 `json:"payment_min_amount"`
+	PaymentMaxAmount                      *float64 `json:"payment_max_amount"`
+	PaymentDailyLimit                     *float64 `json:"payment_daily_limit"`
+	PaymentOrderTimeoutMin                *int     `json:"payment_order_timeout_minutes"`
+	PaymentMaxPendingOrders               *int     `json:"payment_max_pending_orders"`
+	PaymentEnabledTypes                   []string `json:"payment_enabled_types"`
+	PaymentBalanceDisabled                *bool    `json:"payment_balance_disabled"`
+	PaymentBalanceRechargeMultiplier      *float64 `json:"payment_balance_recharge_multiplier"`
+	PaymentSubscriptionUSDToCNYRate       *float64 `json:"payment_subscription_usd_to_cny_rate"`
+	PaymentBalanceRechargeExpression      *string  `json:"payment_balance_recharge_expression"`
+	PaymentSubscriptionRechargeExpression *string  `json:"payment_subscription_recharge_expression"`
+	PaymentFXRateFallback                 *float64 `json:"payment_fx_rate_fallback"`
+	PaymentRechargeFeeRate                *float64 `json:"payment_recharge_fee_rate"`
+	PaymentLoadBalanceStrat               *string  `json:"payment_load_balance_strategy"`
+	PaymentProductNamePrefix              *string  `json:"payment_product_name_prefix"`
+	PaymentProductNameSuffix              *string  `json:"payment_product_name_suffix"`
+	PaymentHelpImageURL                   *string  `json:"payment_help_image_url"`
+	PaymentHelpText                       *string  `json:"payment_help_text"`
+	PaymentBalanceRechargeHelpText        *string  `json:"payment_balance_recharge_help_text"`
+	PaymentSubscriptionShowRate           *bool    `json:"payment_subscription_show_rate"`
+	PaymentSubscriptionShowPeakRate       *bool    `json:"payment_subscription_show_peak_rate"`
+	PaymentSubscriptionShow5hLimit        *bool    `json:"payment_subscription_show_5h_limit"`
+	PaymentSubscriptionShowWeekLimit      *bool    `json:"payment_subscription_show_week_limit"`
+	PaymentSubscriptionShowTotalLimit     *bool    `json:"payment_subscription_show_total_limit"`
+	PaymentSubscriptionShowModelScopes    *bool    `json:"payment_subscription_show_model_scopes"`
 
 	// Cancel rate limit
 	PaymentCancelRateLimitEnabled *bool   `json:"payment_cancel_rate_limit_enabled"`
@@ -1609,28 +1619,38 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	// Skip if no payment fields were provided (prevents accidental wipe).
 	if h.paymentConfigService != nil && hasPaymentFields(req) {
 		paymentReq := service.UpdatePaymentConfigRequest{
-			Enabled:                   req.PaymentEnabled,
-			MinAmount:                 req.PaymentMinAmount,
-			MaxAmount:                 req.PaymentMaxAmount,
-			DailyLimit:                req.PaymentDailyLimit,
-			OrderTimeoutMin:           req.PaymentOrderTimeoutMin,
-			MaxPendingOrders:          req.PaymentMaxPendingOrders,
-			EnabledTypes:              req.PaymentEnabledTypes,
-			BalanceDisabled:           req.PaymentBalanceDisabled,
-			BalanceRechargeMultiplier: req.PaymentBalanceRechargeMultiplier,
-			SubscriptionUSDToCNYRate:  req.PaymentSubscriptionUSDToCNYRate,
-			RechargeFeeRate:           req.PaymentRechargeFeeRate,
-			LoadBalanceStrategy:       req.PaymentLoadBalanceStrat,
-			ProductNamePrefix:         req.PaymentProductNamePrefix,
-			ProductNameSuffix:         req.PaymentProductNameSuffix,
-			HelpImageURL:              req.PaymentHelpImageURL,
-			HelpText:                  req.PaymentHelpText,
-			CancelRateLimitEnabled:    req.PaymentCancelRateLimitEnabled,
-			CancelRateLimitMax:        req.PaymentCancelRateLimitMax,
-			CancelRateLimitWindow:     req.PaymentCancelRateLimitWindow,
-			CancelRateLimitUnit:       req.PaymentCancelRateLimitUnit,
-			CancelRateLimitMode:       req.PaymentCancelRateLimitMode,
-			AlipayForceQRCode:         req.PaymentAlipayForceQRCode,
+			Enabled:                        req.PaymentEnabled,
+			MinAmount:                      req.PaymentMinAmount,
+			MaxAmount:                      req.PaymentMaxAmount,
+			DailyLimit:                     req.PaymentDailyLimit,
+			OrderTimeoutMin:                req.PaymentOrderTimeoutMin,
+			MaxPendingOrders:               req.PaymentMaxPendingOrders,
+			EnabledTypes:                   req.PaymentEnabledTypes,
+			BalanceDisabled:                req.PaymentBalanceDisabled,
+			BalanceRechargeMultiplier:      req.PaymentBalanceRechargeMultiplier,
+			SubscriptionUSDToCNYRate:       req.PaymentSubscriptionUSDToCNYRate,
+			BalanceRechargeExpression:      req.PaymentBalanceRechargeExpression,
+			SubscriptionRechargeExpression: req.PaymentSubscriptionRechargeExpression,
+			FXRateFallback:                 req.PaymentFXRateFallback,
+			RechargeFeeRate:                req.PaymentRechargeFeeRate,
+			LoadBalanceStrategy:            req.PaymentLoadBalanceStrat,
+			ProductNamePrefix:              req.PaymentProductNamePrefix,
+			ProductNameSuffix:              req.PaymentProductNameSuffix,
+			HelpImageURL:                   req.PaymentHelpImageURL,
+			HelpText:                       req.PaymentHelpText,
+			BalanceRechargeHelpText:        req.PaymentBalanceRechargeHelpText,
+			SubscriptionShowRate:           req.PaymentSubscriptionShowRate,
+			SubscriptionShowPeakRate:       req.PaymentSubscriptionShowPeakRate,
+			SubscriptionShow5hLimit:        req.PaymentSubscriptionShow5hLimit,
+			SubscriptionShowWeekLimit:      req.PaymentSubscriptionShowWeekLimit,
+			SubscriptionShowTotalLimit:     req.PaymentSubscriptionShowTotalLimit,
+			SubscriptionShowModelScopes:    req.PaymentSubscriptionShowModelScopes,
+			CancelRateLimitEnabled:         req.PaymentCancelRateLimitEnabled,
+			CancelRateLimitMax:             req.PaymentCancelRateLimitMax,
+			CancelRateLimitWindow:          req.PaymentCancelRateLimitWindow,
+			CancelRateLimitUnit:            req.PaymentCancelRateLimitUnit,
+			CancelRateLimitMode:            req.PaymentCancelRateLimitMode,
+			AlipayForceQRCode:              req.PaymentAlipayForceQRCode,
 		}
 		if err := h.paymentConfigService.UpdatePaymentConfig(c.Request.Context(), paymentReq); err != nil {
 			response.ErrorFrom(c, err)
@@ -1863,12 +1883,22 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PaymentBalanceDisabled:                                 updatedPaymentCfg.BalanceDisabled,
 		PaymentBalanceRechargeMultiplier:                       updatedPaymentCfg.BalanceRechargeMultiplier,
 		PaymentSubscriptionUSDToCNYRate:                        updatedPaymentCfg.SubscriptionUSDToCNYRate,
+		PaymentBalanceRechargeExpression:                       updatedPaymentCfg.BalanceRechargeExpression,
+		PaymentSubscriptionRechargeExpression:                  updatedPaymentCfg.SubscriptionRechargeExpression,
+		PaymentFXRateFallback:                                  updatedPaymentCfg.FXRateFallback,
 		PaymentRechargeFeeRate:                                 updatedPaymentCfg.RechargeFeeRate,
 		PaymentLoadBalanceStrat:                                updatedPaymentCfg.LoadBalanceStrategy,
 		PaymentProductNamePrefix:                               updatedPaymentCfg.ProductNamePrefix,
 		PaymentProductNameSuffix:                               updatedPaymentCfg.ProductNameSuffix,
 		PaymentHelpImageURL:                                    updatedPaymentCfg.HelpImageURL,
 		PaymentHelpText:                                        updatedPaymentCfg.HelpText,
+		PaymentBalanceRechargeHelpText:                         updatedPaymentCfg.BalanceRechargeHelpText,
+		PaymentSubscriptionShowRate:                            updatedPaymentCfg.SubscriptionShowRate,
+		PaymentSubscriptionShowPeakRate:                        updatedPaymentCfg.SubscriptionShowPeakRate,
+		PaymentSubscriptionShow5hLimit:                         updatedPaymentCfg.SubscriptionShow5hLimit,
+		PaymentSubscriptionShowWeekLimit:                       updatedPaymentCfg.SubscriptionShowWeekLimit,
+		PaymentSubscriptionShowTotalLimit:                      updatedPaymentCfg.SubscriptionShowTotalLimit,
+		PaymentSubscriptionShowModelScopes:                     updatedPaymentCfg.SubscriptionShowModelScopes,
 		PaymentCancelRateLimitEnabled:                          updatedPaymentCfg.CancelRateLimitEnabled,
 		PaymentCancelRateLimitMax:                              updatedPaymentCfg.CancelRateLimitMax,
 		PaymentCancelRateLimitWindow:                           updatedPaymentCfg.CancelRateLimitWindow,
@@ -1922,6 +1952,9 @@ func hasPaymentFields(req UpdateSettingsRequest) bool {
 		req.PaymentOrderTimeoutMin != nil || req.PaymentMaxPendingOrders != nil ||
 		req.PaymentEnabledTypes != nil || req.PaymentBalanceDisabled != nil ||
 		req.PaymentBalanceRechargeMultiplier != nil || req.PaymentSubscriptionUSDToCNYRate != nil ||
+		req.PaymentBalanceRechargeExpression != nil || req.PaymentSubscriptionRechargeExpression != nil || req.PaymentFXRateFallback != nil ||
+		req.PaymentBalanceRechargeHelpText != nil || req.PaymentSubscriptionShowRate != nil || req.PaymentSubscriptionShowPeakRate != nil ||
+		req.PaymentSubscriptionShow5hLimit != nil || req.PaymentSubscriptionShowWeekLimit != nil || req.PaymentSubscriptionShowTotalLimit != nil || req.PaymentSubscriptionShowModelScopes != nil ||
 		req.PaymentRechargeFeeRate != nil ||
 		req.PaymentLoadBalanceStrat != nil || req.PaymentProductNamePrefix != nil ||
 		req.PaymentProductNameSuffix != nil || req.PaymentHelpImageURL != nil ||
