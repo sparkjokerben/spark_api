@@ -172,8 +172,15 @@ type openAIFastPolicyForwardingSettingRepo struct {
 	value string
 }
 
-func (r *openAIFastPolicyForwardingSettingRepo) GetValue(context.Context, string) (string, error) {
+func (r *openAIFastPolicyForwardingSettingRepo) GetValue(_ context.Context, key string) (string, error) {
+	if key == "client_retry_rules_auto_update_enabled" {
+		return "false", nil
+	}
 	return r.value, nil
+}
+
+func (r *openAIFastPolicyForwardingSettingRepo) GetMultiple(context.Context, []string) (map[string]string, error) {
+	return map[string]string{}, nil
 }
 
 type openAIFastPolicyForwardingHTTPUpstream struct {
