@@ -1,10 +1,10 @@
 # =============================================================================
-# Sub2API Docker Compose Configuration
+# Spark API Docker Compose Configuration
 # =============================================================================
 # Quick Start:
 #   1. Copy .env.example to .env and configure
 #   2. docker-compose up -d
-#   3. Check logs: docker-compose logs -f sub2api
+#   3. Check logs: docker-compose logs -f spark_api
 #   4. Access: http://localhost:8080
 #
 # All configuration is done via environment variables.
@@ -13,11 +13,11 @@
 
 services:
   # ===========================================================================
-  # Sub2API Application
+  # Spark API Application
   # ===========================================================================
-  sub2api:
-    image: weishaw/sub2api:latest
-    container_name: sub2api
+  spark_api:
+    image: ghcr.io/spark-work-space/spark_api:latest
+    container_name: spark_api
     restart: unless-stopped
     ulimits:
       nofile:
@@ -27,7 +27,7 @@ services:
       - "${BIND_HOST:-0.0.0.0}:${SERVER_PORT:-8080}:8080"
     volumes:
       # Data persistence (config.yaml will be auto-generated here)
-      - sub2api_data:/app/data
+      - spark_api_data:/app/data
       # Optional: Mount custom config.yaml (uncomment and create the file first)
       # Copy config.example.yaml to config.yaml, modify it, then uncomment:
       # - ./config.yaml:/app/data/config.yaml
@@ -77,7 +77,7 @@ services:
       # =======================================================================
       # Admin Account (auto-created on first run)
       # =======================================================================
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@sub2api.local}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@spark_api.local}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
 
       # =======================================================================
@@ -148,6 +148,8 @@ services:
       # Proxy for accessing GitHub (online updates + pricing data)
       # Examples: http://host:port, socks5://host:port
       - UPDATE_PROXY_URL=${UPDATE_PROXY_URL:-}
+      # Classic PAT for private Releases and GHCR checks (repo + read:packages)
+      - UPDATE_GITHUB_TOKEN=${UPDATE_GITHUB_TOKEN:-}
 
       # =======================================================================
       # Image Generation Stream & Concurrency
@@ -172,7 +174,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - sub2api-network
+      - spark_api-network
     healthcheck:
       test:
         [
@@ -195,7 +197,7 @@ services:
   # ===========================================================================
   postgres:
     image: postgres:18-alpine
-    container_name: sub2api-postgres
+    container_name: spark_api-postgres
     restart: unless-stopped
     ulimits:
       nofile:
@@ -213,7 +215,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-sub2api}
       - TZ=${TZ:-Asia/Shanghai}
     networks:
-      - sub2api-network
+      - spark_api-network
     healthcheck:
       test:
         [
@@ -232,7 +234,7 @@ services:
   # ===========================================================================
   redis:
     image: redis:8-alpine
-    container_name: sub2api-redis
+    container_name: spark_api-redis
     restart: unless-stopped
     ulimits:
       nofile:
@@ -252,7 +254,7 @@ services:
       # REDISCLI_AUTH is used by redis-cli for authentication (safer than -a flag)
       - REDISCLI_AUTH=${REDIS_PASSWORD:-}
     networks:
-      - sub2api-network
+      - spark_api-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -265,7 +267,7 @@ services:
 # Volumes
 # =============================================================================
 volumes:
-  sub2api_data:
+  spark_api_data:
     driver: local
   postgres_data:
     driver: local
@@ -276,5 +278,5 @@ volumes:
 # Networks
 # =============================================================================
 networks:
-  sub2api-network:
+  spark_api-network:
     driver: bridge

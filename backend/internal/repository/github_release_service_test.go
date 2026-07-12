@@ -126,6 +126,29 @@ func (s *GitHubReleaseServiceSuite) TestDownloadFile_Success() {
 	require.Len(s.T(), b, 100, "downloaded content length mismatch")
 }
 
+func (s *GitHubReleaseServiceSuite) TestDownloadPrivateReleaseAsset() {
+	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(s.T(), "application/octet-stream", r.Header.Get("Accept"))
+		require.Equal(s.T(), "Bearer private-token", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte("private asset"))
+	}))
+	s.client = &githubReleaseClient{
+		httpClient: &http.Client{},
+		downloadHTTPClient: &http.Client{
+			Transport: &testTransport{testServerURL: s.srv.URL},
+		},
+		token: "private-token",
+	}
+
+	dest := filepath.Join(s.tempDir, "private.bin")
+	err := s.client.DownloadFile(context.Background(), "https://api.github.com/repos/test/repo/releases/assets/1", dest, 100)
+
+	require.NoError(s.T(), err)
+	contents, err := os.ReadFile(dest)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "private asset", string(contents))
+}
+
 func (s *GitHubReleaseServiceSuite) TestDownloadFile_404() {
 	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
@@ -217,6 +240,7 @@ func (s *GitHubReleaseServiceSuite) TestFetchLatestRelease_Success() {
 		"html_url": "https://github.com/test/repo/releases/v1.0.0",
 		"assets": [
 			{
+				"url": "https://api.github.com/repos/test/repo/releases/assets/1",
 				"name": "app-linux-amd64.tar.gz",
 				"browser_download_url": "https://github.com/test/repo/releases/download/v1.0.0/app-linux-amd64.tar.gz"
 			}
@@ -226,7 +250,9 @@ func (s *GitHubReleaseServiceSuite) TestFetchLatestRelease_Success() {
 	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(s.T(), "/repos/test/repo/releases/latest", r.URL.Path)
 		require.Equal(s.T(), "application/vnd.github.v3+json", r.Header.Get("Accept"))
-		require.Equal(s.T(), "Sub2API-Updater", r.Header.Get("User-Agent"))
+		require.Equal(s.T(), "Spark-API-Updater", r.Header.Get("User-Agent"))
+		require.Equal(s.T(), "Bearer private-token", r.Header.Get("Authorization"))
+		require.Equal(s.T(), "2022-11-28", r.Header.Get("X-GitHub-Api-Version"))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(releaseJSON))
@@ -238,6 +264,7 @@ func (s *GitHubReleaseServiceSuite) TestFetchLatestRelease_Success() {
 			Transport: &testTransport{testServerURL: s.srv.URL},
 		},
 		downloadHTTPClient: &http.Client{},
+		token:              "private-token",
 	}
 
 	release, err := s.client.FetchLatestRelease(context.Background(), "test/repo")
@@ -246,6 +273,7 @@ func (s *GitHubReleaseServiceSuite) TestFetchLatestRelease_Success() {
 	require.Equal(s.T(), "Release 1.0.0", release.Name)
 	require.Len(s.T(), release.Assets, 1)
 	require.Equal(s.T(), "app-linux-amd64.tar.gz", release.Assets[0].Name)
+	require.Equal(s.T(), "https://api.github.com/repos/test/repo/releases/assets/1", release.Assets[0].APIURL)
 }
 
 func (s *GitHubReleaseServiceSuite) TestFetchRecentReleases_Success() {
@@ -278,7 +306,7 @@ func (s *GitHubReleaseServiceSuite) TestFetchRecentReleases_Success() {
 		require.Equal(s.T(), "/repos/test/repo/releases", r.URL.Path)
 		require.Equal(s.T(), "15", r.URL.Query().Get("per_page"))
 		require.Equal(s.T(), "application/vnd.github.v3+json", r.Header.Get("Accept"))
-		require.Equal(s.T(), "Sub2API-Updater", r.Header.Get("User-Agent"))
+		require.Equal(s.T(), "Spark-API-Updater", r.Header.Get("User-Agent"))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(releasesJSON))
@@ -299,6 +327,26 @@ func (s *GitHubReleaseServiceSuite) TestFetchRecentReleases_Success() {
 	require.Len(s.T(), releases[0].Assets, 1)
 	require.True(s.T(), releases[1].Prerelease)
 	require.Equal(s.T(), "v1.0.0", releases[2].TagName)
+}
+
+func (s *GitHubReleaseServiceSuite) TestFetchContainerVersions_Success() {
+	versionsJSON := `[{"html_url":"https://github.com/orgs/test/packages/container/app/1","metadata":{"container":{"tags":["latest","1.2.3"]}}}]`
+	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(s.T(), "/orgs/test/packages/container/app/versions", r.URL.Path)
+		require.Equal(s.T(), "30", r.URL.Query().Get("per_page"))
+		require.Equal(s.T(), "Bearer private-token", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(versionsJSON))
+	}))
+	s.client = &githubReleaseClient{
+		httpClient:         &http.Client{Transport: &testTransport{testServerURL: s.srv.URL}},
+		downloadHTTPClient: &http.Client{},
+		token:              "private-token",
+	}
+
+	versions, err := s.client.FetchContainerVersions(context.Background(), "test", "app", 30)
+
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), []string{"latest", "1.2.3"}, versions[0].Metadata.Container.Tags)
 }
 
 func (s *GitHubReleaseServiceSuite) TestFetchRecentReleases_Non200() {

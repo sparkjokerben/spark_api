@@ -1,16 +1,16 @@
-# Sub2API Docker Image
+# Spark API Docker Image
 
-Sub2API is an AI API Gateway Platform for distributing and managing AI product subscription API quotas.
+Spark API is an AI API Gateway Platform for distributing and managing AI product subscription API quotas.
 
 ## Quick Start
 
 ```bash
 docker run -d \
-  --name sub2api \
+  --name spark_api \
   -p 8080:8080 \
   -e DATABASE_URL="postgres://user:pass@host:5432/sub2api" \
   -e REDIS_URL="redis://host:6379" \
-  weishaw/sub2api:latest
+  ghcr.io/spark-work-space/spark_api:latest
 ```
 
 ## Docker Compose
@@ -19,8 +19,8 @@ docker run -d \
 version: '3.8'
 
 services:
-  sub2api:
-    image: weishaw/sub2api:latest
+  spark_api:
+    image: ghcr.io/spark-work-space/spark_api:latest
     ports:
       - "8080:8080"
     environment:
@@ -72,5 +72,5 @@ volumes:
 
 ## Links
 
-- [GitHub Repository](https://github.com/weishaw/sub2api)
-- [Documentation](https://github.com/weishaw/sub2api#readme)
+- [GitHub Repository](https://github.com/spark-work-space/spark_api)
+- [Documentation](https://github.com/spark-work-space/spark_api#readme)

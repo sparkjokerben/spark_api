@@ -21,7 +21,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # GitHub raw content base URL
-GITHUB_RAW_URL="https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy"
+GITHUB_RAW_URL="https://raw.githubusercontent.com/spark-work-space/spark_api/main/deploy"
 
 # Print colored message
 print_info() {
@@ -157,7 +157,7 @@ main() {
     echo "     docker-compose up -d"
     echo ""
     echo "  3. View logs:"
-    echo "     docker-compose logs -f sub2api"
+    echo "     docker-compose logs -f spark_api"
     echo ""
     echo "  4. Access Web UI:"
     echo "     http://localhost:8080"

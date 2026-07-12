@@ -32,7 +32,11 @@
           v-if="dropdownOpen"
           ref="dropdownRef"
           class="absolute left-0 z-50 mt-2 overflow-hidden whitespace-normal rounded-xl border border-gray-200 bg-white shadow-lg transition-all duration-200 dark:border-dark-700 dark:bg-dark-800"
-          :class="rollbackPanelOpen && isReleaseBuild ? 'w-80' : 'w-64'"
+          :class="
+            (rollbackPanelOpen && isReleaseBuild) || manualUpdateOpen || manualUpdateRequired
+              ? 'w-80'
+              : 'w-64'
+          "
         >
           <!-- Header with refresh button -->
           <div
@@ -255,7 +259,7 @@
                       {{ t('version.updateAvailable') }}
                     </p>
                     <p class="text-xs text-amber-600/70 dark:text-amber-400/70">
-                      v{{ latestVersion }}
+                      v{{ latestVersion }} - {{ updateSourceLabel }}
                     </p>
                   </div>
                   <svg
@@ -312,13 +316,14 @@
                       {{ t('version.updateAvailable') }}
                     </p>
                     <p class="text-xs text-amber-600/70 dark:text-amber-400/70">
-                      v{{ latestVersion }}
+                      v{{ latestVersion }} - {{ updateSourceLabel }}
                     </p>
                   </div>
                 </div>
 
                 <!-- Update button -->
                 <button
+                  v-if="!manualUpdateRequired"
                   @click="handleUpdate"
                   :disabled="updating"
                   class="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -344,7 +349,11 @@
 
                 <!-- View release link -->
                 <a
-                  v-if="releaseInfo?.html_url && releaseInfo.html_url !== '#'"
+                  v-if="
+                    updateSource === 'release' &&
+                    releaseInfo?.html_url &&
+                    releaseInfo.html_url !== '#'
+                  "
                   :href="releaseInfo.html_url"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -624,6 +633,57 @@
                   </transition>
                 </div>
               </div>
+
+              <div
+                v-if="isReleaseBuild && !updateSuccess"
+                class="mt-2 border-t border-gray-100 pt-2 dark:border-dark-700"
+              >
+                <button
+                  @click="manualUpdateOpen = !manualUpdateOpen"
+                  class="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:text-dark-500 dark:hover:bg-dark-700/50 dark:hover:text-dark-300"
+                >
+                  <span class="flex items-center gap-1.5">
+                    <Icon name="terminal" size="xs" :stroke-width="2" />
+                    {{ t('version.manualDockerUpdate') }}
+                  </span>
+                  <Icon
+                    name="chevronDown"
+                    size="xs"
+                    :stroke-width="2"
+                    class="transition-transform duration-200"
+                    :class="{ 'rotate-180': manualUpdateOpen || manualUpdateRequired }"
+                  />
+                </button>
+
+                <transition name="rollback">
+                  <div
+                    v-if="manualUpdateOpen || manualUpdateRequired"
+                    class="mt-2 overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600"
+                  >
+                    <div
+                      class="flex items-center justify-between border-b border-gray-200 bg-gray-100 px-2 py-1.5 dark:border-dark-600 dark:bg-dark-700"
+                    >
+                      <span class="text-[11px] text-gray-500 dark:text-dark-300">Docker Compose</span>
+                      <button
+                        @click="copyToClipboard(manualUpdateCommand)"
+                        class="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600 dark:text-dark-400 dark:hover:bg-dark-600 dark:hover:text-dark-200"
+                      >
+                        <Icon
+                          :name="copied ? 'check' : 'copy'"
+                          size="xs"
+                          :stroke-width="2"
+                          :class="copied ? 'text-green-500' : ''"
+                        />
+                        {{ copied ? t('version.copied') : t('version.copyCommand') }}
+                      </button>
+                    </div>
+                    <code
+                      class="block select-all whitespace-pre-wrap break-all bg-gray-50 p-2.5 font-mono text-[10px] leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-dark-300"
+                      >{{ manualUpdateCommand }}</code
+                    >
+                  </div>
+                </transition>
+              </div>
             </template>
           </div>
         </div>
@@ -651,9 +711,9 @@ import {
 import { useClipboard } from '@/composables/useClipboard'
 import Icon from '@/components/icons/Icon.vue'
 
-const GITHUB_REPO = 'Wei-Shaw/sub2api'
-// Docker Hub image published by CI (tags carry no "v" prefix, e.g. weishaw/sub2api:0.1.146)
-const DOCKER_IMAGE = 'weishaw/sub2api'
+const GITHUB_REPO = 'spark-work-space/spark_api'
+// GHCR image published from this fork (tags carry no "v" prefix, e.g. ghcr.io/spark-work-space/spark_api:0.1.146)
+const DOCKER_IMAGE = 'ghcr.io/spark-work-space/spark_api'
 
 const { t } = useI18n()
 
@@ -676,6 +736,11 @@ const latestVersion = computed(() => appStore.latestVersion)
 const hasUpdate = computed(() => appStore.hasUpdate)
 const releaseInfo = computed(() => appStore.releaseInfo)
 const buildType = computed(() => appStore.buildType)
+const updateSource = computed(() => appStore.updateSource)
+const manualUpdateRequired = computed(() => appStore.manualUpdate)
+const updateSourceLabel = computed(() =>
+  updateSource.value === 'ghcr' ? 'GHCR' : 'GitHub Release'
+)
 
 // Update process states (local to this component)
 const updating = ref(false)
@@ -686,6 +751,7 @@ const updateSuccess = ref(false)
 const restartCountdown = ref(0)
 // Distinguishes the success + restart panel between update and rollback flows
 const successKind = ref<'update' | 'rollback'>('update')
+const manualUpdateOpen = ref(false)
 
 // Rollback states
 const rollbackPanelOpen = ref(false)
@@ -723,6 +789,11 @@ const dockerRollbackCommand = computed(() => {
     'docker compose up -d'
   ].join('\n')
 })
+
+const manualUpdateCommand = [
+  'docker compose -f docker-compose.local.yml pull spark_api',
+  'docker compose -f docker-compose.local.yml up -d --no-deps spark_api'
+].join('\n')
 
 const activeManualCommand = computed(() =>
   manualTab.value === 'docker' ? dockerRollbackCommand.value : scriptRollbackCommand.value

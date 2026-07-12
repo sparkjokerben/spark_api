@@ -32,6 +32,7 @@ export default {
     sourceMode: '源码构建',
     sourceModeHint: '源码构建请使用 git pull 更新',
     updateNow: '立即更新',
+    manualDockerUpdate: '手动 Docker 更新',
     updating: '正在更新...',
     updateComplete: '更新完成',
     updateFailed: '更新失败',

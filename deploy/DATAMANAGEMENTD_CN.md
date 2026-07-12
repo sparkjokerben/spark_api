@@ -56,11 +56,11 @@ sudo ./deploy/install-datamanagementd.sh --source /path/to/sub2api
 
 ## 4. Docker 部署联动
 
-若 `sub2api` 运行在 Docker 容器中，需要将宿主机 Socket 挂载到容器同路径：
+若 `spark_api` 运行在 Docker 容器中，需要将宿主机 Socket 挂载到容器同路径：
 
 ```yaml
 services:
-  sub2api:
+  spark_api:
     volumes:
       - /tmp/sub2api-datamanagement.sock:/tmp/sub2api-datamanagement.sock
 ```

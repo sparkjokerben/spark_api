@@ -154,7 +154,8 @@ type UpdateConfig struct {
 	// ProxyURL 用于访问 GitHub 的代理地址
 	// 支持 http/https/socks5/socks5h 协议
 	// 例如: "http://127.0.0.1:7890", "socks5://127.0.0.1:1080"
-	ProxyURL string `mapstructure:"proxy_url"`
+	ProxyURL    string `mapstructure:"proxy_url"`
+	GitHubToken string `mapstructure:"github_token"`
 }
 
 type IdempotencyConfig struct {
@@ -1672,6 +1673,10 @@ func setDefaults() {
 
 	// Security - disable direct fallback on proxy error
 	viper.SetDefault("security.proxy_fallback.allow_direct_on_error", false)
+
+	// Update
+	viper.SetDefault("update.proxy_url", "")
+	viper.SetDefault("update.github_token", "")
 
 	// Billing
 	viper.SetDefault("billing.circuit_breaker.enabled", true)

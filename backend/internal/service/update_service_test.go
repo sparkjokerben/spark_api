@@ -28,17 +28,28 @@ func (s *updateServiceCacheStub) SetUpdateInfo(_ context.Context, data string, _
 }
 
 type updateServiceGitHubClientStub struct {
-	release        *GitHubRelease
-	recentReleases []*GitHubRelease
-	recentErr      error
+	release           *GitHubRelease
+	latestErr         error
+	recentReleases    []*GitHubRelease
+	recentErr         error
+	containerVersions []*ContainerPackageVersion
+	containerErr      error
+	latestRepo        string
+	recentRepo        string
 }
 
-func (s *updateServiceGitHubClientStub) FetchLatestRelease(context.Context, string) (*GitHubRelease, error) {
-	return s.release, nil
+func (s *updateServiceGitHubClientStub) FetchLatestRelease(_ context.Context, repo string) (*GitHubRelease, error) {
+	s.latestRepo = repo
+	return s.release, s.latestErr
 }
 
-func (s *updateServiceGitHubClientStub) FetchRecentReleases(context.Context, string, int) ([]*GitHubRelease, error) {
+func (s *updateServiceGitHubClientStub) FetchRecentReleases(_ context.Context, repo string, _ int) ([]*GitHubRelease, error) {
+	s.recentRepo = repo
 	return s.recentReleases, s.recentErr
+}
+
+func (s *updateServiceGitHubClientStub) FetchContainerVersions(context.Context, string, string, int) ([]*ContainerPackageVersion, error) {
+	return s.containerVersions, s.containerErr
 }
 
 func (s *updateServiceGitHubClientStub) DownloadFile(context.Context, string, string, int64) error {
@@ -50,14 +61,15 @@ func (s *updateServiceGitHubClientStub) FetchChecksumFile(context.Context, strin
 }
 
 func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
+	client := &updateServiceGitHubClientStub{
+		release: &GitHubRelease{
+			TagName: "v0.1.132",
+			Name:    "v0.1.132",
+		},
+	}
 	svc := NewUpdateService(
 		&updateServiceCacheStub{},
-		&updateServiceGitHubClientStub{
-			release: &GitHubRelease{
-				TagName: "v0.1.132",
-				Name:    "v0.1.132",
-			},
-		},
+		client,
 		"0.1.132",
 		"release",
 	)
@@ -67,6 +79,72 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrNoUpdateAvailable))
 	require.ErrorIs(t, err, ErrNoUpdateAvailable)
+	require.Equal(t, "spark-work-space/spark_api", client.latestRepo)
+}
+
+func TestUpdateServiceUsesReleaseAssetAPIURL(t *testing.T) {
+	client := &updateServiceGitHubClientStub{release: &GitHubRelease{
+		TagName: "v0.1.133",
+		Assets: []GitHubAsset{{
+			APIURL:             "https://api.github.com/repos/spark-work-space/spark_api/releases/assets/1",
+			BrowserDownloadURL: "https://github.com/spark-work-space/spark_api/releases/download/v0.1.133/app.tar.gz",
+		}},
+	}}
+	svc := NewUpdateService(&updateServiceCacheStub{}, client, "0.1.132", "release")
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, client.release.Assets[0].APIURL, info.ReleaseInfo.Assets[0].DownloadURL)
+}
+
+func newContainerVersion(tags ...string) *ContainerPackageVersion {
+	version := &ContainerPackageVersion{HTMLURL: "https://github.com/orgs/spark-work-space/packages/container/spark_api"}
+	version.Metadata.Container.Tags = tags
+	return version
+}
+
+func TestUpdateServicePrefersNewerGHCRVersion(t *testing.T) {
+	client := &updateServiceGitHubClientStub{
+		release:           &GitHubRelease{TagName: "v0.1.132"},
+		containerVersions: []*ContainerPackageVersion{newContainerVersion("latest", "0.1.133")},
+	}
+	svc := NewUpdateService(&updateServiceCacheStub{}, client, "0.1.132", "release")
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, "0.1.133", info.LatestVersion)
+	require.Equal(t, "ghcr", info.UpdateSource)
+	require.True(t, info.ManualUpdate)
+	require.ErrorIs(t, svc.PerformUpdate(context.Background()), ErrManualUpdateRequired)
+}
+
+func TestUpdateServicePrefersReleaseForEqualVersion(t *testing.T) {
+	client := &updateServiceGitHubClientStub{
+		release:           &GitHubRelease{TagName: "v0.1.133"},
+		containerVersions: []*ContainerPackageVersion{newContainerVersion("0.1.133")},
+	}
+	svc := NewUpdateService(&updateServiceCacheStub{}, client, "0.1.132", "release")
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, "release", info.UpdateSource)
+	require.False(t, info.ManualUpdate)
+}
+
+func TestUpdateServiceFallsBackToGHCRWhenReleaseMissing(t *testing.T) {
+	client := &updateServiceGitHubClientStub{
+		latestErr:         errors.New("release not found"),
+		containerVersions: []*ContainerPackageVersion{newContainerVersion("0.1.133")},
+	}
+	svc := NewUpdateService(&updateServiceCacheStub{}, client, "0.1.132", "release")
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, "ghcr", info.UpdateSource)
 }
 
 func newRollbackTestService(current string, releases []*GitHubRelease) *UpdateService {
@@ -129,6 +207,16 @@ func TestUpdateServiceListRollbackVersionsEmptyWhenNoneOlder(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Empty(t, versions)
+}
+
+func TestUpdateServiceRollbackChecksForkReleases(t *testing.T) {
+	client := &updateServiceGitHubClientStub{}
+	svc := NewUpdateService(&updateServiceCacheStub{}, client, "0.1.147", "release")
+
+	_, err := svc.ListRollbackVersions(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, "spark-work-space/spark_api", client.recentRepo)
 }
 
 func TestUpdateServiceListRollbackVersionsPropagatesFetchError(t *testing.T) {

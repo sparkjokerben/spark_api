@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -25,12 +26,15 @@ import (
 var (
 	ErrNoUpdateAvailable         = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
 	ErrRollbackVersionNotAllowed = infraerrors.BadRequest("ROLLBACK_VERSION_NOT_ALLOWED", "version is not in the allowed rollback list")
+	ErrManualUpdateRequired      = infraerrors.Conflict("MANUAL_UPDATE_REQUIRED", "this update is only available as a container image; update it with Docker Compose")
 )
 
 const (
 	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
-	githubRepo     = "Wei-Shaw/sub2api"
+	githubRepo     = "spark-work-space/spark_api"
+	githubOwner    = "spark-work-space"
+	githubPackage  = "spark_api"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"
@@ -55,6 +59,7 @@ type UpdateCache interface {
 type GitHubReleaseClient interface {
 	FetchLatestRelease(ctx context.Context, repo string) (*GitHubRelease, error)
 	FetchRecentReleases(ctx context.Context, repo string, perPage int) ([]*GitHubRelease, error)
+	FetchContainerVersions(ctx context.Context, owner, packageName string, perPage int) ([]*ContainerPackageVersion, error)
 	DownloadFile(ctx context.Context, url, dest string, maxSize int64) error
 	FetchChecksumFile(ctx context.Context, url string) ([]byte, error)
 }
@@ -86,6 +91,8 @@ type UpdateInfo struct {
 	Cached         bool         `json:"cached"`
 	Warning        string       `json:"warning,omitempty"`
 	BuildType      string       `json:"build_type"` // "source" or "release"
+	UpdateSource   string       `json:"update_source"`
+	ManualUpdate   bool         `json:"manual_update"`
 }
 
 // ReleaseInfo contains GitHub release details
@@ -124,9 +131,27 @@ type RollbackVersion struct {
 }
 
 type GitHubAsset struct {
+	APIURL             string `json:"url"`
 	Name               string `json:"name"`
 	BrowserDownloadURL string `json:"browser_download_url"`
 	Size               int64  `json:"size"`
+}
+
+type ContainerPackageVersion struct {
+	HTMLURL   string `json:"html_url"`
+	UpdatedAt string `json:"updated_at"`
+	Metadata  struct {
+		Container struct {
+			Tags []string `json:"tags"`
+		} `json:"container"`
+	} `json:"metadata"`
+}
+
+func (a GitHubAsset) downloadURL() string {
+	if a.APIURL != "" {
+		return a.APIURL
+	}
+	return a.BrowserDownloadURL
 }
 
 // CheckUpdate checks for available updates
@@ -138,19 +163,24 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 		}
 	}
 
-	// Fetch from GitHub
-	info, err := s.fetchLatestRelease(ctx)
-	if err != nil {
+	releaseInfo, releaseErr := s.fetchLatestRelease(ctx)
+	containerInfo, containerErr := s.fetchLatestContainerVersion(ctx)
+	info := newestUpdateInfo(releaseInfo, containerInfo)
+	if info == nil {
+		sourceErr := errors.Join(releaseErr, containerErr)
+		if sourceErr == nil {
+			sourceErr = errors.New("update sources returned no data")
+		}
 		// Return cached on error
 		if cached, cacheErr := s.getFromCache(ctx); cacheErr == nil && cached != nil {
-			cached.Warning = "Using cached data: " + err.Error()
+			cached.Warning = "Using cached data: " + sourceErr.Error()
 			return cached, nil
 		}
 		return &UpdateInfo{
 			CurrentVersion: s.currentVersion,
 			LatestVersion:  s.currentVersion,
 			HasUpdate:      false,
-			Warning:        err.Error(),
+			Warning:        sourceErr.Error(),
 			BuildType:      s.buildType,
 		}, nil
 	}
@@ -170,6 +200,9 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 
 	if !info.HasUpdate {
 		return ErrNoUpdateAvailable
+	}
+	if info.ManualUpdate {
+		return ErrManualUpdateRequired
 	}
 
 	return s.applyReleaseAssets(ctx, info.ReleaseInfo.Assets)
@@ -352,7 +385,7 @@ func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) e
 	for i, a := range match.Assets {
 		assets[i] = Asset{
 			Name:        a.Name,
-			DownloadURL: a.BrowserDownloadURL,
+			DownloadURL: a.downloadURL(),
 			Size:        a.Size,
 		}
 	}
@@ -404,6 +437,9 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 	if err != nil {
 		return nil, err
 	}
+	if release == nil {
+		return nil, fmt.Errorf("GitHub Release API returned no release")
+	}
 
 	latestVersion := strings.TrimPrefix(release.TagName, "v")
 
@@ -411,7 +447,7 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 	for i, a := range release.Assets {
 		assets[i] = Asset{
 			Name:        a.Name,
-			DownloadURL: a.BrowserDownloadURL,
+			DownloadURL: a.downloadURL(),
 			Size:        a.Size,
 		}
 	}
@@ -427,9 +463,60 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 			HTMLURL:     release.HTMLURL,
 			Assets:      assets,
 		},
-		Cached:    false,
-		BuildType: s.buildType,
+		Cached:       false,
+		BuildType:    s.buildType,
+		UpdateSource: "release",
 	}, nil
+}
+
+func (s *UpdateService) fetchLatestContainerVersion(ctx context.Context) (*UpdateInfo, error) {
+	versions, err := s.githubClient.FetchContainerVersions(ctx, githubOwner, githubPackage, 30)
+	if err != nil {
+		return nil, err
+	}
+
+	latest := ""
+	var latestPackage *ContainerPackageVersion
+	for _, item := range versions {
+		if item == nil {
+			continue
+		}
+		for _, tag := range item.Metadata.Container.Tags {
+			if !isSemanticVersion(tag) || (latest != "" && compareVersions(latest, tag) >= 0) {
+				continue
+			}
+			latest = strings.TrimPrefix(tag, "v")
+			latestPackage = item
+		}
+	}
+	if latestPackage == nil {
+		return nil, fmt.Errorf("GHCR package has no semantic version tag")
+	}
+
+	hasUpdate := compareVersions(s.currentVersion, latest) < 0
+	return &UpdateInfo{
+		CurrentVersion: s.currentVersion,
+		LatestVersion:  latest,
+		HasUpdate:      hasUpdate,
+		ReleaseInfo: &ReleaseInfo{
+			Name:        "GHCR " + latest,
+			PublishedAt: latestPackage.UpdatedAt,
+			HTMLURL:     latestPackage.HTMLURL,
+		},
+		BuildType:    s.buildType,
+		UpdateSource: "ghcr",
+		ManualUpdate: hasUpdate,
+	}, nil
+}
+
+func newestUpdateInfo(releaseInfo, containerInfo *UpdateInfo) *UpdateInfo {
+	if releaseInfo == nil {
+		return containerInfo
+	}
+	if containerInfo == nil || compareVersions(releaseInfo.LatestVersion, containerInfo.LatestVersion) >= 0 {
+		return releaseInfo
+	}
+	return containerInfo
 }
 
 func (s *UpdateService) downloadFile(ctx context.Context, downloadURL, dest string) error {
@@ -600,9 +687,11 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 	}
 
 	var cached struct {
-		Latest      string       `json:"latest"`
-		ReleaseInfo *ReleaseInfo `json:"release_info"`
-		Timestamp   int64        `json:"timestamp"`
+		Latest       string       `json:"latest"`
+		ReleaseInfo  *ReleaseInfo `json:"release_info"`
+		UpdateSource string       `json:"update_source"`
+		ManualUpdate bool         `json:"manual_update"`
+		Timestamp    int64        `json:"timestamp"`
 	}
 	if err := json.Unmarshal([]byte(data), &cached); err != nil {
 		return nil, err
@@ -619,18 +708,24 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 		ReleaseInfo:    cached.ReleaseInfo,
 		Cached:         true,
 		BuildType:      s.buildType,
+		UpdateSource:   cached.UpdateSource,
+		ManualUpdate:   cached.ManualUpdate,
 	}, nil
 }
 
 func (s *UpdateService) saveToCache(ctx context.Context, info *UpdateInfo) {
 	cacheData := struct {
-		Latest      string       `json:"latest"`
-		ReleaseInfo *ReleaseInfo `json:"release_info"`
-		Timestamp   int64        `json:"timestamp"`
+		Latest       string       `json:"latest"`
+		ReleaseInfo  *ReleaseInfo `json:"release_info"`
+		UpdateSource string       `json:"update_source"`
+		ManualUpdate bool         `json:"manual_update"`
+		Timestamp    int64        `json:"timestamp"`
 	}{
-		Latest:      info.LatestVersion,
-		ReleaseInfo: info.ReleaseInfo,
-		Timestamp:   time.Now().Unix(),
+		Latest:       info.LatestVersion,
+		ReleaseInfo:  info.ReleaseInfo,
+		UpdateSource: info.UpdateSource,
+		ManualUpdate: info.ManualUpdate,
+		Timestamp:    time.Now().Unix(),
 	}
 
 	data, _ := json.Marshal(cacheData)
@@ -663,4 +758,18 @@ func parseVersion(v string) [3]int {
 		}
 	}
 	return result
+}
+
+func isSemanticVersion(v string) bool {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	parts := strings.Split(v, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	for _, part := range parts {
+		if _, err := strconv.Atoi(part); err != nil {
+			return false
+		}
+	}
+	return true
 }

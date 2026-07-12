@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 type githubReleaseClient struct {
 	httpClient         *http.Client
 	downloadHTTPClient *http.Client
+	token              string
 }
 
 type githubReleaseClientError struct {
@@ -29,7 +31,7 @@ type githubReleaseClientError struct {
 // 代理配置失败时行为由 allowDirectOnProxyError 控制：
 //   - false（默认）：返回错误占位客户端，禁止回退到直连
 //   - true：回退到直连（仅限管理员显式开启）
-func NewGitHubReleaseClient(proxyURL string, allowDirectOnProxyError bool) service.GitHubReleaseClient {
+func NewGitHubReleaseClient(proxyURL, token string, allowDirectOnProxyError bool) service.GitHubReleaseClient {
 	// 安全说明：httpclient.GetClient 的错误链（url.Parse / proxyutil）不含明文代理凭据，
 	// 但仍通过 slog 仅在服务端日志记录，不会暴露给 HTTP 响应。
 	sharedClient, err := httpclient.GetClient(httpclient.Options{
@@ -60,6 +62,7 @@ func NewGitHubReleaseClient(proxyURL string, allowDirectOnProxyError bool) servi
 	return &githubReleaseClient{
 		httpClient:         sharedClient,
 		downloadHTTPClient: downloadClient,
+		token:              strings.TrimSpace(token),
 	}
 }
 
@@ -68,6 +71,10 @@ func (c *githubReleaseClientError) FetchLatestRelease(ctx context.Context, repo 
 }
 
 func (c *githubReleaseClientError) FetchRecentReleases(ctx context.Context, repo string, perPage int) ([]*service.GitHubRelease, error) {
+	return nil, c.err
+}
+
+func (c *githubReleaseClientError) FetchContainerVersions(ctx context.Context, owner, packageName string, perPage int) ([]*service.ContainerPackageVersion, error) {
 	return nil, c.err
 }
 
@@ -87,7 +94,7 @@ func (c *githubReleaseClient) FetchLatestRelease(ctx context.Context, repo strin
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "Sub2API-Updater")
+	c.setGitHubHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -121,7 +128,7 @@ func (c *githubReleaseClient) FetchRecentReleases(ctx context.Context, repo stri
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "Sub2API-Updater")
+	c.setGitHubHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -141,11 +148,46 @@ func (c *githubReleaseClient) FetchRecentReleases(ctx context.Context, repo stri
 	return releases, nil
 }
 
+func (c *githubReleaseClient) FetchContainerVersions(ctx context.Context, owner, packageName string, perPage int) ([]*service.ContainerPackageVersion, error) {
+	if perPage <= 0 || perPage > 100 {
+		perPage = 30
+	}
+	endpoint := fmt.Sprintf(
+		"https://api.github.com/orgs/%s/packages/container/%s/versions?per_page=%d",
+		url.PathEscape(owner),
+		url.PathEscape(packageName),
+		perPage,
+	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	c.setGitHubHeaders(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub Packages API returned %d", resp.StatusCode)
+	}
+
+	var versions []*service.ContainerPackageVersion
+	if err := json.NewDecoder(resp.Body).Decode(&versions); err != nil {
+		return nil, err
+	}
+	return versions, nil
+}
+
 func (c *githubReleaseClient) DownloadFile(ctx context.Context, url, dest string, maxSize int64) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Accept", "application/octet-stream")
+	c.setGitHubHeaders(req)
 
 	// 使用预配置的下载客户端（已包含代理配置）
 	resp, err := c.downloadHTTPClient.Do(req)
@@ -194,6 +236,8 @@ func (c *githubReleaseClient) FetchChecksumFile(ctx context.Context, url string)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Accept", "application/octet-stream")
+	c.setGitHubHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -206,4 +250,13 @@ func (c *githubReleaseClient) FetchChecksumFile(ctx context.Context, url string)
 	}
 
 	return io.ReadAll(resp.Body)
+}
+
+func (c *githubReleaseClient) setGitHubHeaders(req *http.Request) {
+	req.Header.Set("User-Agent", "Spark-API-Updater")
+	host := strings.ToLower(req.URL.Hostname())
+	if c.token != "" && (host == "github.com" || strings.HasSuffix(host, ".github.com")) {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	}
 }

@@ -1134,3 +1134,6 @@ update:
   # Leave empty for direct connection (recommended for overseas servers)
   # 留空表示直连（适用于海外服务器）
   proxy_url: ""
+  # Classic PAT for private Releases and GHCR checks (repo + read:packages)
+  # 用于私有 Release 和 GHCR 检查（需要 repo + read:packages）
+  github_token: ""

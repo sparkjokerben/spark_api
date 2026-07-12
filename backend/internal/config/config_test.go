@@ -201,6 +201,16 @@ func TestLoadOpenAICompactModelFromEnv(t *testing.T) {
 	require.Equal(t, "gpt-5.3-codex", cfg.Gateway.OpenAICompactModel)
 }
 
+func TestLoadUpdateGitHubTokenFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("UPDATE_GITHUB_TOKEN", "private-token")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	require.Equal(t, "private-token", cfg.Update.GitHubToken)
+}
+
 func TestLoadDefaultOpenAIHTTP2Enabled(t *testing.T) {
 	resetViperWithJWTSecret(t)
 

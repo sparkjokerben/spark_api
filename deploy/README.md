@@ -35,10 +35,10 @@ Use the automated preparation script for the easiest setup:
 
 ```bash
 # Download and run the preparation script
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh | bash
+curl -sSL https://raw.githubusercontent.com/spark-work-space/spark_api/main/deploy/docker-deploy.sh | bash
 
 # Or download first, then run
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh -o docker-deploy.sh
+curl -sSL https://raw.githubusercontent.com/spark-work-space/spark_api/main/deploy/docker-deploy.sh -o docker-deploy.sh
 chmod +x docker-deploy.sh
 ./docker-deploy.sh
 ```
@@ -56,10 +56,10 @@ chmod +x docker-deploy.sh
 docker compose -f docker-compose.local.yml up -d
 
 # View logs
-docker compose -f docker-compose.local.yml logs -f sub2api
+docker compose -f docker-compose.local.yml logs -f spark_api
 
 # If admin password was auto-generated, find it in logs:
-docker compose -f docker-compose.local.yml logs sub2api | grep "admin password"
+docker compose -f docker-compose.local.yml logs spark_api | grep "admin password"
 
 # Access Web UI
 # http://localhost:8080
@@ -71,8 +71,8 @@ If you prefer manual control:
 
 ```bash
 # Clone repository
-git clone https://github.com/Wei-Shaw/sub2api.git
-cd sub2api/deploy
+git clone https://github.com/spark-work-space/spark_api.git
+cd spark_api/deploy
 
 # Configure environment
 cp .env.example .env
@@ -91,7 +91,7 @@ mkdir -p data postgres_data redis_data
 docker compose -f docker-compose.local.yml up -d
 
 # View logs (check for auto-generated admin password)
-docker compose -f docker-compose.local.yml logs -f sub2api
+docker compose -f docker-compose.local.yml logs -f spark_api
 
 # Access Web UI
 # http://localhost:8080
@@ -121,7 +121,7 @@ When using Docker Compose with `AUTO_SETUP=true`:
 
 3. If `ADMIN_PASSWORD` is not set, check logs for the generated password:
    ```bash
-   docker compose logs sub2api | grep "admin password"
+   docker compose logs spark_api | grep "admin password"
    ```
 
 ### Database Migration Notes (PostgreSQL)
@@ -168,10 +168,10 @@ docker compose -f docker-compose.local.yml up -d
 docker compose -f docker-compose.local.yml down
 
 # View logs
-docker compose -f docker-compose.local.yml logs -f sub2api
+docker compose -f docker-compose.local.yml logs -f spark_api
 
-# Restart Sub2API only
-docker compose -f docker-compose.local.yml restart sub2api
+# Restart Spark API only
+docker compose -f docker-compose.local.yml restart spark_api
 
 # Update to latest version
 docker compose -f docker-compose.local.yml pull
@@ -192,10 +192,10 @@ docker compose up -d
 docker compose down
 
 # View logs
-docker compose logs -f sub2api
+docker compose logs -f spark_api
 
-# Restart Sub2API only
-docker compose restart sub2api
+# Restart Spark API only
+docker compose restart spark_api
 
 # Update to latest version
 docker compose pull
@@ -353,12 +353,12 @@ For production servers using systemd.
 ### One-Line Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/spark-work-space/spark_api/main/deploy/install.sh | sudo bash
 ```
 
 ### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/Wei-Shaw/sub2api/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/spark-work-space/spark_api/releases)
 2. Extract and copy the binary to `/opt/sub2api/`
 3. Copy `sub2api.service` to `/etc/systemd/system/`
 4. Run:

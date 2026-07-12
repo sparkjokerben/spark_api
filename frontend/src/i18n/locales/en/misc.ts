@@ -32,6 +32,7 @@ export default {
     sourceMode: 'Source Build',
     sourceModeHint: 'Source build, use git pull to update',
     updateNow: 'Update Now',
+    manualDockerUpdate: 'Manual Docker update',
     updating: 'Updating...',
     updateComplete: 'Update Complete',
     updateFailed: 'Update Failed',
