@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
-      <UsageStatsCards :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
+      <UsageStatsCards :stats="usageStats" :show-account-cost="false" :show-standard-cost="false" />
 
       <div class="space-y-4">
         <div class="card p-4">
@@ -62,7 +62,7 @@
             :start-date="startDate"
             :end-date="endDate"
           />
-          <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+          <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" :show-standard-cost="false" />
         </div>
       </div>
 
@@ -177,6 +177,7 @@
           :columns="visibleColumns"
           :server-side-sort="true"
           :show-account-billing="false"
+          :show-billing-details="false"
           :show-upstream-endpoint="false"
           default-sort-key="created_at"
           default-sort-order="desc"
@@ -649,9 +650,7 @@ const exportToCSV = async () => {
       'Output Tokens',
       'Cache Read Tokens',
       'Cache Creation Tokens',
-      'Rate Multiplier',
       'Billed Cost',
-      'Original Cost',
       'First Token (ms)',
       'Duration (ms)',
     ]
@@ -668,9 +667,7 @@ const exportToCSV = async () => {
       log.output_tokens,
       log.cache_read_tokens,
       log.cache_creation_tokens,
-      log.rate_multiplier,
       log.actual_cost.toFixed(8),
-      log.total_cost.toFixed(8),
       log.first_token_ms ?? '',
       log.duration_ms ?? '',
     ].map(escapeCSVValue))

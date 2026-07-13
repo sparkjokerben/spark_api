@@ -933,19 +933,6 @@ func (s *APIKeyService) SearchAPIKeys(ctx context.Context, userID int64, keyword
 	return keys, nil
 }
 
-// GetUserGroupRates 获取用户的专属分组倍率配置
-// 返回 map[groupID]rateMultiplier
-func (s *APIKeyService) GetUserGroupRates(ctx context.Context, userID int64) (map[int64]float64, error) {
-	if s.userGroupRateRepo == nil {
-		return nil, nil
-	}
-	rates, err := s.userGroupRateRepo.GetByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get user group rates: %w", err)
-	}
-	return rates, nil
-}
-
 // CheckAPIKeyQuotaAndExpiry checks if the API key is valid for use (not expired, quota not exhausted)
 // Returns nil if valid, error if invalid
 func (s *APIKeyService) CheckAPIKeyQuotaAndExpiry(apiKey *APIKey) error {

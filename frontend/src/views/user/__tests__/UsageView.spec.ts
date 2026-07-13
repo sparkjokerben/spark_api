@@ -100,13 +100,7 @@ const usageLog = {
   id: 1,
   request_id: 'req-user-export',
   actual_cost: 0.092883,
-  total_cost: 0.092883,
-  rate_multiplier: 1,
   service_tier: 'priority',
-  input_cost: 0.020285,
-  output_cost: 0.00303,
-  cache_creation_cost: 0.000001,
-  cache_read_cost: 0.069568,
   input_tokens: 4057,
   output_tokens: 101,
   cache_creation_tokens: 4,
@@ -239,13 +233,14 @@ describe('user UsageView', () => {
     expect(showSuccess).toHaveBeenCalled()
     expect(csvContent.startsWith('\uFEFF')).toBe(true)
     expect(csvContent.slice(1)).toBe([
-      'Time,API Key Name,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing Mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms)',
-      '2026-03-08T00:00:00Z,demo-key,gpt-5.4,"\'-",,203.0.113.10,Sync,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,345',
+      'Time,API Key Name,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing Mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Billed Cost,First Token (ms),Duration (ms)',
+      '2026-03-08T00:00:00Z,demo-key,gpt-5.4,"\'-",,203.0.113.10,Sync,Token,4057,101,278272,4,0.09288300,12,345',
     ].join('\n'))
     expect(csvContent).toContain('IP Address')
     expect(csvContent).toContain('203.0.113.10')
     expect(csvContent).toContain('Billed Cost')
-    expect(csvContent).toContain('Original Cost')
+    expect(csvContent).not.toContain('Original Cost')
+    expect(csvContent).not.toContain('Rate Multiplier')
     expect(csvContent).not.toContain('Upstream Endpoint')
     expect(csvContent).not.toContain('account_cost')
     expect(csvContent).not.toContain('account_rate_multiplier')

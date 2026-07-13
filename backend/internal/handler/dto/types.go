@@ -46,7 +46,9 @@ type AdminUser struct {
 	LastUsedAt *time.Time `json:"last_used_at"`
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]rateMultiplier
-	GroupRates map[int64]float64 `json:"group_rates,omitempty"`
+	GroupRates    map[int64]float64       `json:"group_rates,omitempty"`
+	APIKeys       []AdminAPIKey           `json:"api_keys,omitempty"`
+	Subscriptions []AdminUserSubscription `json:"subscriptions,omitempty"`
 }
 
 type APIKey struct {
@@ -89,12 +91,20 @@ type APIKey struct {
 	Group *Group `json:"group,omitempty"`
 }
 
+// AdminAPIKey is the administrator-facing API key DTO. Its direct Group field
+// overrides the public embedded field so billing configuration stays visible to
+// administrators without leaking through user endpoints.
+type AdminAPIKey struct {
+	APIKey
+	Group *AdminGroup `json:"group,omitempty"`
+}
+
 type Group struct {
 	ID             int64   `json:"id"`
 	Name           string  `json:"name"`
 	Description    string  `json:"description"`
 	Platform       string  `json:"platform"`
-	RateMultiplier float64 `json:"rate_multiplier"`
+	RateMultiplier float64 `json:"-"`
 	IsExclusive    bool    `json:"is_exclusive"`
 	Status         string  `json:"status"`
 
@@ -106,17 +116,17 @@ type Group struct {
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	AllowImageGeneration         bool    `json:"allow_image_generation"`
 	AllowBatchImageGeneration    bool    `json:"allow_batch_image_generation"`
-	ImageRateIndependent         bool    `json:"image_rate_independent"`
-	ImageRateMultiplier          float64 `json:"image_rate_multiplier"`
-	BatchImageDiscountMultiplier float64 `json:"batch_image_discount_multiplier"`
-	BatchImageHoldMultiplier     float64 `json:"batch_image_hold_multiplier"`
-	VideoRateIndependent         bool    `json:"video_rate_independent"`
-	VideoRateMultiplier          float64 `json:"video_rate_multiplier"`
+	ImageRateIndependent         bool    `json:"-"`
+	ImageRateMultiplier          float64 `json:"-"`
+	BatchImageDiscountMultiplier float64 `json:"-"`
+	BatchImageHoldMultiplier     float64 `json:"-"`
+	VideoRateIndependent         bool    `json:"-"`
+	VideoRateMultiplier          float64 `json:"-"`
 	// 高峰时段倍率配置
-	PeakRateEnabled    bool     `json:"peak_rate_enabled"`
-	PeakStart          string   `json:"peak_start"`
-	PeakEnd            string   `json:"peak_end"`
-	PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
+	PeakRateEnabled    bool     `json:"-"`
+	PeakStart          string   `json:"-"`
+	PeakEnd            string   `json:"-"`
+	PeakRateMultiplier float64  `json:"-"`
 	ImagePrice1K       *float64 `json:"image_price_1k"`
 	ImagePrice2K       *float64 `json:"image_price_2k"`
 	ImagePrice4K       *float64 `json:"image_price_4k"`
@@ -152,6 +162,18 @@ type Group struct {
 // 注意：普通用户接口不得返回 model_routing/account_count/account_groups 等内部信息。
 type AdminGroup struct {
 	Group
+
+	RateMultiplier               float64 `json:"rate_multiplier"`
+	ImageRateIndependent         bool    `json:"image_rate_independent"`
+	ImageRateMultiplier          float64 `json:"image_rate_multiplier"`
+	BatchImageDiscountMultiplier float64 `json:"batch_image_discount_multiplier"`
+	BatchImageHoldMultiplier     float64 `json:"batch_image_hold_multiplier"`
+	VideoRateIndependent         bool    `json:"video_rate_independent"`
+	VideoRateMultiplier          float64 `json:"video_rate_multiplier"`
+	PeakRateEnabled              bool    `json:"peak_rate_enabled"`
+	PeakStart                    string  `json:"peak_start"`
+	PeakEnd                      string  `json:"peak_end"`
+	PeakRateMultiplier           float64 `json:"peak_rate_multiplier"`
 
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
@@ -487,13 +509,13 @@ type UsageLog struct {
 	CacheCreation5mTokens int `json:"cache_creation_5m_tokens"`
 	CacheCreation1hTokens int `json:"cache_creation_1h_tokens"`
 
-	InputCost         float64 `json:"input_cost"`
-	OutputCost        float64 `json:"output_cost"`
-	CacheCreationCost float64 `json:"cache_creation_cost"`
-	CacheReadCost     float64 `json:"cache_read_cost"`
-	TotalCost         float64 `json:"total_cost"`
+	InputCost         float64 `json:"-"`
+	OutputCost        float64 `json:"-"`
+	CacheCreationCost float64 `json:"-"`
+	CacheReadCost     float64 `json:"-"`
+	TotalCost         float64 `json:"-"`
 	ActualCost        float64 `json:"actual_cost"`
-	RateMultiplier    float64 `json:"rate_multiplier"`
+	RateMultiplier    float64 `json:"-"`
 
 	BillingType  int8   `json:"billing_type"`
 	RequestType  string `json:"request_type"`
@@ -508,7 +530,7 @@ type UsageLog struct {
 	ImageInputSize     *string        `json:"image_input_size"`
 	ImageOutputSize    *string        `json:"image_output_size"`
 	ImageOutputTokens  int            `json:"image_output_tokens"`
-	ImageOutputCost    float64        `json:"image_output_cost"`
+	ImageOutputCost    float64        `json:"-"`
 	ImageSizeSource    *string        `json:"image_size_source"`
 	ImageSizeBreakdown map[string]int `json:"image_size_breakdown"`
 	MediaType          *string        `json:"media_type"`
@@ -535,6 +557,14 @@ type UsageLog struct {
 // AdminUsageLog 是管理员接口使用的 usage log DTO（包含管理员字段）。
 type AdminUsageLog struct {
 	UsageLog
+
+	InputCost         float64 `json:"input_cost"`
+	OutputCost        float64 `json:"output_cost"`
+	CacheCreationCost float64 `json:"cache_creation_cost"`
+	CacheReadCost     float64 `json:"cache_read_cost"`
+	TotalCost         float64 `json:"total_cost"`
+	RateMultiplier    float64 `json:"rate_multiplier"`
+	ImageOutputCost   float64 `json:"image_output_cost"`
 
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Omitted when no mapping was applied (requested model was used as-is).
@@ -617,8 +647,8 @@ type UserSubscription struct {
 	DailyUsageUSD   float64 `json:"daily_usage_usd"`
 	WeeklyUsageUSD  float64 `json:"weekly_usage_usd"`
 	MonthlyUsageUSD float64 `json:"monthly_usage_usd"`
-	ShowRate        bool    `json:"show_rate,omitempty"`
-	ShowPeakRate    bool    `json:"show_peak_rate,omitempty"`
+	ShowRate        bool    `json:"-"`
+	ShowPeakRate    bool    `json:"-"`
 	Show5hLimit     bool    `json:"show_5h_limit,omitempty"`
 	ShowWeekLimit   bool    `json:"show_week_limit,omitempty"`
 	ShowMonthLimit  bool    `json:"show_month_limit,omitempty"`
@@ -635,6 +665,7 @@ type UserSubscription struct {
 // 注意：普通用户接口不得返回 assigned_by/assigned_at/notes/assigned_by_user 等管理员字段。
 type AdminUserSubscription struct {
 	UserSubscription
+	Group *AdminGroup `json:"group,omitempty"`
 
 	AssignedBy *int64    `json:"assigned_by"`
 	AssignedAt time.Time `json:"assigned_at"`

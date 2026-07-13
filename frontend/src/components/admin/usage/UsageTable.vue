@@ -170,6 +170,7 @@
               <span class="font-medium text-green-600 dark:text-green-400">${{ row.actual_cost?.toFixed(6) || '0.000000' }}</span>
               <!-- Cost Detail Tooltip -->
               <div
+                v-if="showBillingDetails"
                 class="group relative"
                 @mouseenter="showTooltip($event, row)"
                 @mouseleave="hideTooltip"
@@ -481,17 +482,18 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { fetchBatch, getEntry } from '@/utils/ipGeoLookup'
-import type { AdminUsageLog } from '@/types'
+import type { AdminUsageLog, UsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
 
 interface Props {
-  data: AdminUsageLog[]
+  data: Array<AdminUsageLog | UsageLog>
   loading?: boolean
   columns: Column[]
   serverSideSort?: boolean
   defaultSortKey?: string
   defaultSortOrder?: 'asc' | 'desc'
   showAccountBilling?: boolean
+  showBillingDetails?: boolean
   showUpstreamEndpoint?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
@@ -503,6 +505,7 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortKey: '',
   defaultSortOrder: 'asc',
   showAccountBilling: true,
+  showBillingDetails: true,
   showUpstreamEndpoint: true,
   flat: false
 })
@@ -513,6 +516,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 const showAccountBilling = props.showAccountBilling
+const showBillingDetails = props.showBillingDetails
 const showUpstreamEndpoint = props.showUpstreamEndpoint
 const ipGeoBatchLoading = ref(false)
 

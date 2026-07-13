@@ -59,22 +59,11 @@ func sanitizeUserSubscription(out *dto.UserSubscription, cfg service.Subscriptio
 	if out == nil {
 		return
 	}
-	out.ShowRate = cfg.ShowRate
-	out.ShowPeakRate = cfg.ShowPeakRate
 	out.Show5hLimit = cfg.Show5hLimit
 	out.ShowWeekLimit = cfg.ShowWeekLimit
 	out.ShowMonthLimit = cfg.ShowMonthLimit
 	if out.Group == nil {
 		return
-	}
-	if !cfg.ShowRate {
-		out.Group.RateMultiplier = 0
-	}
-	if !cfg.ShowPeakRate {
-		out.Group.PeakRateEnabled = false
-		out.Group.PeakStart = ""
-		out.Group.PeakEnd = ""
-		out.Group.PeakRateMultiplier = 0
 	}
 	if !cfg.Show5hLimit {
 		out.Group.DailyLimitUSD = nil

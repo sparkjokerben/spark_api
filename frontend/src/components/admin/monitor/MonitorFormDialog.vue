@@ -186,10 +186,9 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { adminAPI } from '@/api/admin'
-import { keysAPI } from '@/api/keys'
-import { userGroupsAPI } from '@/api/groups'
 import type {
   BodyOverrideMode,
   ChannelMonitor,
@@ -230,6 +229,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const { providerPickerClass } = useChannelMonitorFormat()
 
 // System-configured default interval for new monitors. Falls back to the static
@@ -481,18 +481,17 @@ async function openMyKeyPicker() {
   if (myActiveKeys.value.length > 0) return
   myKeysLoading.value = true
   try {
-    const [res, rates] = await Promise.all([
-      keysAPI.list(1, 100, { status: 'active' }),
-      userGroupsAPI.getUserGroupRates(),
-    ])
-    const items = res.items || []
+    const currentUserID = authStore.user?.id
+    if (!currentUserID) throw new Error('Current administrator is unavailable')
+    const adminUser = await adminAPI.users.getById(currentUserID)
+    const items = adminUser.api_keys || []
     const now = Date.now()
     myActiveKeys.value = items.filter(k => {
       if (k.status !== 'active') return false
       if (!k.expires_at) return true
       return new Date(k.expires_at).getTime() > now
     })
-    userGroupRates.value = rates
+    userGroupRates.value = adminUser.group_rates || {}
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('admin.channelMonitor.form.noActiveKey')))
   } finally {

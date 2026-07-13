@@ -36,7 +36,6 @@ const mountPlanCard = (groupPlatform: string) =>
         price: 10,
         amount: 1000,
         features: [],
-        rate_multiplier: 1,
         validity_days: 30,
         validity_unit: "day",
         supported_model_scopes: ["claude", "gemini_text", "gemini_image"],
@@ -61,5 +60,12 @@ describe("SubscriptionPlanCard", () => {
     expect(text).toContain("Claude");
     expect(text).toContain("Gemini");
     expect(text).toContain("Imagen");
+  });
+
+  it("does not render billing multiplier details", () => {
+    const text = mountPlanCard("openai").text();
+    expect(text).not.toContain("×");
+    expect(text).not.toContain("payment.planCard.rate");
+    expect(text).not.toContain("payment.planCard.peakRate");
   });
 });

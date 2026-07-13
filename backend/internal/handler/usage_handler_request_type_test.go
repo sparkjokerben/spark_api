@@ -212,13 +212,10 @@ func TestUserUsageListKeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) 
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
-	require.Contains(t, body, `"input_cost":0.01`)
-	require.Contains(t, body, `"output_cost":0.02`)
-	require.Contains(t, body, `"cache_creation_cost":0.03`)
-	require.Contains(t, body, `"cache_read_cost":0.04`)
-	require.Contains(t, body, `"total_cost":0.1`)
 	require.Contains(t, body, `"actual_cost":0.08`)
-	require.Contains(t, body, `"rate_multiplier":0.8`)
+	for _, field := range []string{"input_cost", "output_cost", "cache_creation_cost", "cache_read_cost", "total_cost", "rate_multiplier"} {
+		require.NotContains(t, body, field)
+	}
 	require.Contains(t, body, `"ip_address":"203.0.113.10"`)
 	require.NotContains(t, body, "upstream_endpoint")
 	require.NotContains(t, body, "account_rate_multiplier")
@@ -257,8 +254,8 @@ func TestUserUsageStatsUsesScopedFilters(t *testing.T) {
 	require.NotNil(t, repo.statsFilters.RequestType)
 	require.Equal(t, int16(service.RequestTypeSync), *repo.statsFilters.RequestType)
 	require.Equal(t, "token", repo.statsFilters.BillingMode)
-	require.Contains(t, rec.Body.String(), `"total_cost":0.1`)
 	require.Contains(t, rec.Body.String(), `"total_actual_cost":0.08`)
+	require.NotContains(t, rec.Body.String(), `"total_cost"`)
 	require.NotContains(t, rec.Body.String(), "total_account_cost")
 	require.NotContains(t, rec.Body.String(), "upstream_endpoints")
 	require.NotContains(t, rec.Body.String(), "endpoint_paths")
@@ -283,8 +280,8 @@ func TestUserUsageDashboardModelsOmitsAccountCost(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
-	require.Contains(t, body, `"cost":0.1`)
 	require.Contains(t, body, `"actual_cost":0.08`)
+	require.NotContains(t, body, `"cost"`)
 	require.NotContains(t, body, "account_cost")
 }
 
@@ -318,6 +315,7 @@ func TestUserUsageSnapshotUsesScopedFilters(t *testing.T) {
 	require.Equal(t, int64(42), repo.groupFilters.UserID)
 	require.Equal(t, int64(11), repo.groupFilters.GroupID)
 	require.NotContains(t, rec.Body.String(), "account_cost")
+	require.NotContains(t, rec.Body.String(), `"cost"`)
 }
 
 func TestUserUsageSnapshotRejectsInvalidIncludeFlags(t *testing.T) {

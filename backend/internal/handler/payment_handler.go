@@ -42,7 +42,7 @@ func (h *PaymentHandler) GetPaymentConfig(c *gin.Context) {
 		return
 	}
 	h.configService.ApplyEffectiveRechargeExpressions(c.Request.Context(), cfg)
-	response.Success(c, cfg)
+	response.Success(c, publicPaymentConfigFromService(cfg))
 }
 
 // GetPlans returns subscription plans available for sale.
@@ -60,29 +60,24 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 	}
 	// Enrich plans with group platform for frontend color coding
 	type planWithPlatform struct {
-		ID                 int64    `json:"id"`
-		GroupID            int64    `json:"group_id"`
-		GroupPlatform      string   `json:"group_platform"`
-		GroupName          string   `json:"group_name"`
-		RateMultiplier     *float64 `json:"rate_multiplier,omitempty"`
-		PeakRateEnabled    *bool    `json:"peak_rate_enabled,omitempty"`
-		PeakStart          string   `json:"peak_start,omitempty"`
-		PeakEnd            string   `json:"peak_end,omitempty"`
-		PeakRateMultiplier *float64 `json:"peak_rate_multiplier,omitempty"`
-		DailyLimitUSD      *float64 `json:"daily_limit_usd,omitempty"`
-		WeeklyLimitUSD     *float64 `json:"weekly_limit_usd,omitempty"`
-		MonthlyLimitUSD    *float64 `json:"monthly_limit_usd,omitempty"`
-		ModelScopes        []string `json:"supported_model_scopes,omitempty"`
-		Name               string   `json:"name"`
-		Description        string   `json:"description"`
-		Price              float64  `json:"price"`
-		OriginalPrice      *float64 `json:"original_price,omitempty"`
-		ValidityDays       int      `json:"validity_days"`
-		ValidityUnit       string   `json:"validity_unit"`
-		Features           string   `json:"features"`
-		ProductName        string   `json:"product_name"`
-		ForSale            bool     `json:"for_sale"`
-		SortOrder          int      `json:"sort_order"`
+		ID              int64    `json:"id"`
+		GroupID         int64    `json:"group_id"`
+		GroupPlatform   string   `json:"group_platform"`
+		GroupName       string   `json:"group_name"`
+		DailyLimitUSD   *float64 `json:"daily_limit_usd,omitempty"`
+		WeeklyLimitUSD  *float64 `json:"weekly_limit_usd,omitempty"`
+		MonthlyLimitUSD *float64 `json:"monthly_limit_usd,omitempty"`
+		ModelScopes     []string `json:"supported_model_scopes,omitempty"`
+		Name            string   `json:"name"`
+		Description     string   `json:"description"`
+		Price           float64  `json:"price"`
+		OriginalPrice   *float64 `json:"original_price,omitempty"`
+		ValidityDays    int      `json:"validity_days"`
+		ValidityUnit    string   `json:"validity_unit"`
+		Features        string   `json:"features"`
+		ProductName     string   `json:"product_name"`
+		ForSale         bool     `json:"for_sale"`
+		SortOrder       int      `json:"sort_order"`
 	}
 	groupInfo := h.configService.GetGroupInfoMap(c.Request.Context(), plans)
 	result := make([]planWithPlatform, 0, len(plans))
@@ -92,8 +87,6 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		result = append(result, planWithPlatform{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.Name,
-			RateMultiplier: visible.RateMultiplier, PeakRateEnabled: visible.PeakRateEnabled,
-			PeakStart: visible.PeakStart, PeakEnd: visible.PeakEnd, PeakRateMultiplier: visible.PeakRateMultiplier,
 			DailyLimitUSD: visible.DailyLimitUSD, WeeklyLimitUSD: visible.WeeklyLimitUSD,
 			MonthlyLimitUSD: visible.MonthlyLimitUSD, ModelScopes: visible.ModelScopes,
 			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
@@ -146,9 +139,6 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		planList = append(planList, checkoutPlan{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.Name,
-			RateMultiplier:  visible.RateMultiplier,
-			PeakRateEnabled: visible.PeakRateEnabled, PeakStart: visible.PeakStart,
-			PeakEnd: visible.PeakEnd, PeakRateMultiplier: visible.PeakRateMultiplier,
 			DailyLimitUSD:  visible.DailyLimitUSD,
 			WeeklyLimitUSD: visible.WeeklyLimitUSD, MonthlyLimitUSD: visible.MonthlyLimitUSD,
 			ModelScopes: visible.ModelScopes,
@@ -159,85 +149,102 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	}
 
 	response.Success(c, checkoutInfoResponse{
-		Methods:                   limitsResp.Methods,
-		GlobalMin:                 limitsResp.GlobalMin,
-		GlobalMax:                 limitsResp.GlobalMax,
-		Plans:                     planList,
-		BalanceDisabled:           cfg.BalanceDisabled,
-		BalanceRechargeMultiplier: cfg.BalanceRechargeMultiplier,
-		SubscriptionUSDToCNYRate:  cfg.SubscriptionUSDToCNYRate,
-		RechargeFeeRate:           cfg.RechargeFeeRate,
-		HelpText:                  cfg.HelpText,
-		BalanceRechargeHelpText:   cfg.BalanceRechargeHelpText,
-		HelpImageURL:              cfg.HelpImageURL,
-		StripePublishableKey:      cfg.StripePublishableKey,
-		AlipayForceQRCode:         cfg.AlipayForceQRCode,
+		Methods:                  limitsResp.Methods,
+		GlobalMin:                limitsResp.GlobalMin,
+		GlobalMax:                limitsResp.GlobalMax,
+		Plans:                    planList,
+		BalanceDisabled:          cfg.BalanceDisabled,
+		SubscriptionUSDToCNYRate: cfg.SubscriptionUSDToCNYRate,
+		RechargeFeeRate:          cfg.RechargeFeeRate,
+		HelpText:                 cfg.HelpText,
+		BalanceRechargeHelpText:  cfg.BalanceRechargeHelpText,
+		HelpImageURL:             cfg.HelpImageURL,
+		StripePublishableKey:     cfg.StripePublishableKey,
+		AlipayForceQRCode:        cfg.AlipayForceQRCode,
 	})
 }
 
 type checkoutInfoResponse struct {
-	Methods                   map[string]service.MethodLimits `json:"methods"`
-	GlobalMin                 float64                         `json:"global_min"`
-	GlobalMax                 float64                         `json:"global_max"`
-	Plans                     []checkoutPlan                  `json:"plans"`
-	BalanceDisabled           bool                            `json:"balance_disabled"`
-	BalanceRechargeMultiplier float64                         `json:"balance_recharge_multiplier"`
-	SubscriptionUSDToCNYRate  float64                         `json:"subscription_usd_to_cny_rate"`
-	RechargeFeeRate           float64                         `json:"recharge_fee_rate"`
-	HelpText                  string                          `json:"help_text"`
-	BalanceRechargeHelpText   string                          `json:"balance_recharge_help_text"`
-	HelpImageURL              string                          `json:"help_image_url"`
-	StripePublishableKey      string                          `json:"stripe_publishable_key"`
-	AlipayForceQRCode         bool                            `json:"alipay_force_qrcode"`
+	Methods                  map[string]service.MethodLimits `json:"methods"`
+	GlobalMin                float64                         `json:"global_min"`
+	GlobalMax                float64                         `json:"global_max"`
+	Plans                    []checkoutPlan                  `json:"plans"`
+	BalanceDisabled          bool                            `json:"balance_disabled"`
+	SubscriptionUSDToCNYRate float64                         `json:"subscription_usd_to_cny_rate"`
+	RechargeFeeRate          float64                         `json:"recharge_fee_rate"`
+	HelpText                 string                          `json:"help_text"`
+	BalanceRechargeHelpText  string                          `json:"balance_recharge_help_text"`
+	HelpImageURL             string                          `json:"help_image_url"`
+	StripePublishableKey     string                          `json:"stripe_publishable_key"`
+	AlipayForceQRCode        bool                            `json:"alipay_force_qrcode"`
+}
+
+type publicPaymentConfig struct {
+	Enabled                  bool     `json:"enabled"`
+	MinAmount                float64  `json:"min_amount"`
+	MaxAmount                float64  `json:"max_amount"`
+	DailyLimit               float64  `json:"daily_limit"`
+	OrderTimeoutMin          int      `json:"order_timeout_minutes"`
+	MaxPendingOrders         int      `json:"max_pending_orders"`
+	EnabledTypes             []string `json:"enabled_payment_types"`
+	BalanceDisabled          bool     `json:"balance_disabled"`
+	SubscriptionUSDToCNYRate float64  `json:"subscription_usd_to_cny_rate"`
+	RechargeFeeRate          float64  `json:"recharge_fee_rate"`
+	HelpImageURL             string   `json:"help_image_url"`
+	HelpText                 string   `json:"help_text"`
+	BalanceRechargeHelpText  string   `json:"balance_recharge_help_text"`
+	StripePublishableKey     string   `json:"stripe_publishable_key,omitempty"`
+	AlipayForceQRCode        bool     `json:"alipay_force_qrcode"`
+}
+
+func publicPaymentConfigFromService(cfg *service.PaymentConfig) publicPaymentConfig {
+	return publicPaymentConfig{
+		Enabled:                  cfg.Enabled,
+		MinAmount:                cfg.MinAmount,
+		MaxAmount:                cfg.MaxAmount,
+		DailyLimit:               cfg.DailyLimit,
+		OrderTimeoutMin:          cfg.OrderTimeoutMin,
+		MaxPendingOrders:         cfg.MaxPendingOrders,
+		EnabledTypes:             cfg.EnabledTypes,
+		BalanceDisabled:          cfg.BalanceDisabled,
+		SubscriptionUSDToCNYRate: cfg.SubscriptionUSDToCNYRate,
+		RechargeFeeRate:          cfg.RechargeFeeRate,
+		HelpImageURL:             cfg.HelpImageURL,
+		HelpText:                 cfg.HelpText,
+		BalanceRechargeHelpText:  cfg.BalanceRechargeHelpText,
+		StripePublishableKey:     cfg.StripePublishableKey,
+		AlipayForceQRCode:        cfg.AlipayForceQRCode,
+	}
 }
 
 type checkoutPlan struct {
-	ID                 int64    `json:"id"`
-	GroupID            int64    `json:"group_id"`
-	GroupPlatform      string   `json:"group_platform"`
-	GroupName          string   `json:"group_name"`
-	RateMultiplier     *float64 `json:"rate_multiplier,omitempty"`
-	PeakRateEnabled    *bool    `json:"peak_rate_enabled,omitempty"`
-	PeakStart          string   `json:"peak_start,omitempty"`
-	PeakEnd            string   `json:"peak_end,omitempty"`
-	PeakRateMultiplier *float64 `json:"peak_rate_multiplier,omitempty"`
-	DailyLimitUSD      *float64 `json:"daily_limit_usd,omitempty"`
-	WeeklyLimitUSD     *float64 `json:"weekly_limit_usd,omitempty"`
-	MonthlyLimitUSD    *float64 `json:"monthly_limit_usd,omitempty"`
-	ModelScopes        []string `json:"supported_model_scopes,omitempty"`
-	Name               string   `json:"name"`
-	Description        string   `json:"description"`
-	Price              float64  `json:"price"`
-	OriginalPrice      *float64 `json:"original_price,omitempty"`
-	ValidityDays       int      `json:"validity_days"`
-	ValidityUnit       string   `json:"validity_unit"`
-	Features           []string `json:"features"`
-	ProductName        string   `json:"product_name"`
+	ID              int64    `json:"id"`
+	GroupID         int64    `json:"group_id"`
+	GroupPlatform   string   `json:"group_platform"`
+	GroupName       string   `json:"group_name"`
+	DailyLimitUSD   *float64 `json:"daily_limit_usd,omitempty"`
+	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd,omitempty"`
+	MonthlyLimitUSD *float64 `json:"monthly_limit_usd,omitempty"`
+	ModelScopes     []string `json:"supported_model_scopes,omitempty"`
+	Name            string   `json:"name"`
+	Description     string   `json:"description"`
+	Price           float64  `json:"price"`
+	OriginalPrice   *float64 `json:"original_price,omitempty"`
+	ValidityDays    int      `json:"validity_days"`
+	ValidityUnit    string   `json:"validity_unit"`
+	Features        []string `json:"features"`
+	ProductName     string   `json:"product_name"`
 }
 
 type visiblePlanGroupInfo struct {
-	RateMultiplier     *float64
-	PeakRateEnabled    *bool
-	PeakStart          string
-	PeakEnd            string
-	PeakRateMultiplier *float64
-	DailyLimitUSD      *float64
-	WeeklyLimitUSD     *float64
-	MonthlyLimitUSD    *float64
-	ModelScopes        []string
+	DailyLimitUSD   *float64
+	WeeklyLimitUSD  *float64
+	MonthlyLimitUSD *float64
+	ModelScopes     []string
 }
 
 func visibleCheckoutGroupInfo(cfg *service.PaymentConfig, gi service.PlanGroupInfo) visiblePlanGroupInfo {
 	var out visiblePlanGroupInfo
-	if cfg.SubscriptionShowRate {
-		out.RateMultiplier = &gi.RateMultiplier
-	}
-	if cfg.SubscriptionShowPeakRate {
-		out.PeakRateEnabled = &gi.PeakRateEnabled
-		out.PeakStart = gi.PeakStart
-		out.PeakEnd = gi.PeakEnd
-		out.PeakRateMultiplier = &gi.PeakRateMultiplier
-	}
 	if cfg.SubscriptionShow5hLimit {
 		out.DailyLimitUSD = gi.DailyLimitUSD
 	}

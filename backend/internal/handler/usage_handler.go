@@ -31,7 +31,6 @@ type userModelStat struct {
 	CacheCreationTokens int64   `json:"cache_creation_tokens"`
 	CacheReadTokens     int64   `json:"cache_read_tokens"`
 	TotalTokens         int64   `json:"total_tokens"`
-	Cost                float64 `json:"cost"`
 	ActualCost          float64 `json:"actual_cost"`
 }
 
@@ -40,8 +39,29 @@ type userGroupStat struct {
 	GroupName   string  `json:"group_name"`
 	Requests    int64   `json:"requests"`
 	TotalTokens int64   `json:"total_tokens"`
-	Cost        float64 `json:"cost"`
 	ActualCost  float64 `json:"actual_cost"`
+}
+
+type userTrendDataPoint struct {
+	Date                string  `json:"date"`
+	Requests            int64   `json:"requests"`
+	InputTokens         int64   `json:"input_tokens"`
+	OutputTokens        int64   `json:"output_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_tokens"`
+	CacheReadTokens     int64   `json:"cache_read_tokens"`
+	TotalTokens         int64   `json:"total_tokens"`
+	ActualCost          float64 `json:"actual_cost"`
+}
+
+type userAPIKeyDailyUsagePoint struct {
+	Date             string  `json:"date"`
+	Requests         int64   `json:"requests"`
+	InputTokens      int64   `json:"input_tokens"`
+	OutputTokens     int64   `json:"output_tokens"`
+	CacheReadTokens  int64   `json:"cache_read_tokens"`
+	CacheWriteTokens int64   `json:"cache_write_tokens"`
+	TotalTokens      int64   `json:"total_tokens"`
+	ActualCost       float64 `json:"actual_cost"`
 }
 
 // UsageHandler handles usage-related requests
@@ -405,11 +425,13 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	stats.TotalAccountCost = nil
-	stats.UpstreamEndpoints = nil
-	stats.EndpointPaths = nil
-
-	response.Success(c, stats)
+	response.Success(c, gin.H{
+		"total_requests": stats.TotalRequests, "total_input_tokens": stats.TotalInputTokens,
+		"total_output_tokens": stats.TotalOutputTokens, "total_cache_creation_tokens": stats.TotalCacheCreationTokens,
+		"total_cache_read_tokens": stats.TotalCacheReadTokens, "total_cache_tokens": stats.TotalCacheTokens,
+		"total_tokens": stats.TotalTokens, "total_actual_cost": stats.TotalActualCost,
+		"average_duration_ms": stats.AverageDurationMs,
+	})
 }
 
 const (
@@ -450,7 +472,18 @@ func (h *UsageHandler) DashboardStats(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, stats)
+	response.Success(c, gin.H{
+		"total_api_keys": stats.TotalAPIKeys, "active_api_keys": stats.ActiveAPIKeys,
+		"total_requests": stats.TotalRequests, "total_input_tokens": stats.TotalInputTokens,
+		"total_output_tokens": stats.TotalOutputTokens, "total_cache_creation_tokens": stats.TotalCacheCreationTokens,
+		"total_cache_read_tokens": stats.TotalCacheReadTokens, "total_tokens": stats.TotalTokens,
+		"total_actual_cost": stats.TotalActualCost,
+		"today_requests":    stats.TodayRequests, "today_input_tokens": stats.TodayInputTokens,
+		"today_output_tokens": stats.TodayOutputTokens, "today_cache_creation_tokens": stats.TodayCacheCreationTokens,
+		"today_cache_read_tokens": stats.TodayCacheReadTokens, "today_tokens": stats.TodayTokens,
+		"today_actual_cost": stats.TodayActualCost, "average_duration_ms": stats.AverageDurationMs,
+		"rpm": stats.Rpm, "tpm": stats.Tpm, "by_platform": stats.ByPlatform,
+	})
 }
 
 // DashboardTrend handles getting user usage trend data
@@ -469,7 +502,7 @@ func (h *UsageHandler) DashboardTrend(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"trend":       trend,
+		"trend":       userTrendFromUsageStats(trend),
 		"start_date":  parsed.StartTime.Format("2006-01-02"),
 		"end_date":    parsed.EndTime.Add(-24 * time.Hour).Format("2006-01-02"),
 		"granularity": granularity,
@@ -541,7 +574,7 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 			response.ErrorFrom(c, err)
 			return
 		}
-		resp["trend"] = trend
+		resp["trend"] = userTrendFromUsageStats(trend)
 	}
 	if includeModels {
 		models, err := h.usageService.GetModelStatsWithFiltersBySource(c.Request.Context(), parsed.StartTime, parsed.EndTime, parsed.Filters, usagestats.ModelSourceRequested)
@@ -574,7 +607,6 @@ func userModelStatsFromUsageStats(stats []usagestats.ModelStat) []userModelStat 
 			CacheCreationTokens: stat.CacheCreationTokens,
 			CacheReadTokens:     stat.CacheReadTokens,
 			TotalTokens:         stat.TotalTokens,
-			Cost:                stat.Cost,
 			ActualCost:          stat.ActualCost,
 		})
 	}
@@ -589,8 +621,20 @@ func userGroupStatsFromUsageStats(stats []usagestats.GroupStat) []userGroupStat 
 			GroupName:   stat.GroupName,
 			Requests:    stat.Requests,
 			TotalTokens: stat.TotalTokens,
-			Cost:        stat.Cost,
 			ActualCost:  stat.ActualCost,
+		})
+	}
+	return out
+}
+
+func userTrendFromUsageStats(stats []usagestats.TrendDataPoint) []userTrendDataPoint {
+	out := make([]userTrendDataPoint, 0, len(stats))
+	for _, stat := range stats {
+		out = append(out, userTrendDataPoint{
+			Date: stat.Date, Requests: stat.Requests, InputTokens: stat.InputTokens,
+			OutputTokens: stat.OutputTokens, CacheCreationTokens: stat.CacheCreationTokens,
+			CacheReadTokens: stat.CacheReadTokens, TotalTokens: stat.TotalTokens,
+			ActualCost: stat.ActualCost,
 		})
 	}
 	return out
@@ -704,8 +748,17 @@ func (h *UsageHandler) GetMyAPIKeyDailyUsage(c *gin.Context) {
 		return
 	}
 
+	publicItems := make([]userAPIKeyDailyUsagePoint, 0, len(items))
+	for _, item := range items {
+		publicItems = append(publicItems, userAPIKeyDailyUsagePoint{
+			Date: item.Date, Requests: item.Requests, InputTokens: item.InputTokens,
+			OutputTokens: item.OutputTokens, CacheReadTokens: item.CacheReadTokens,
+			CacheWriteTokens: item.CacheWriteTokens, TotalTokens: item.TotalTokens,
+			ActualCost: item.ActualCost,
+		})
+	}
 	response.Success(c, gin.H{
-		"items":      items,
+		"items":      publicItems,
 		"days":       days,
 		"start_date": startTime.Format("2006-01-02"),
 		"end_date":   endTime.AddDate(0, 0, -1).Format("2006-01-02"),
